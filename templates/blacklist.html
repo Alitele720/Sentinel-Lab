@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="grid-two">
+  <article class="card">
+    <h2>手动加入 IP 黑名单</h2>
+    <form method="post">
+      <input type="hidden" name="action" value="add">
+      <label>来源 IP</label>
+      <input name="source_ip" placeholder="10.10.10.99" required>
+      <label>封禁原因</label>
+      <textarea name="reason" rows="3" placeholder="管理员手动封禁"></textarea>
+      <button type="submit">加入黑名单</button>
+    </form>
+  </article>
+
+  <article class="card">
+    <h2>手动阻断端口</h2>
+    <form method="post">
+      <input type="hidden" name="action" value="add_port_block">
+      <label>来源 IP</label>
+      <input name="source_ip" placeholder="10.10.10.99" required>
+      <label>阻断端口</label>
+      <input name="port" type="number" min="1" max="65535" value="{{ target_port }}" required>
+      <label>阻断原因</label>
+      <textarea name="reason" rows="3" placeholder="管理员手动端口阻断"></textarea>
+      <button type="submit" class="danger-button">加入端口阻断</button>
+    </form>
+  </article>
+</section>
+
+<section class="card">
+  <p>端口阻断为应用层模拟，默认目标端口为 <code>{{ target_port }}</code>。</p>
+</section>
+
+<section class="card">
+  <h2>IP 黑名单列表</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>IP</th>
+          <th>状态</th>
+          <th>原因</th>
+          <th>开始时间</th>
+          <th>结束时间</th>
+          <th>来源</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in ip_rows %}
+        <tr>
+          <td>{{ row.source_ip }}</td>
+          <td><span class="badge badge-{{ 'danger' if row.active else 'secondary' }}">{{ "生效中" if row.active else "已解除" }}</span></td>
+          <td>{{ row.reason }}</td>
+          <td>{{ format_display_time(row.created_at) }}</td>
+          <td>{{ format_display_time(row.expires_at) or "永久" }}</td>
+          <td>{{ row.created_by }}</td>
+          <td>
+            {% if row.active %}
+            <form method="post">
+              <input type="hidden" name="action" value="unblock">
+              <input type="hidden" name="source_ip" value="{{ row.source_ip }}">
+              <button type="submit">解除</button>
+            </form>
+            {% else %}
+            已解除
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">暂无 IP 黑名单记录。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>端口阻断列表</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>来源 IP</th>
+          <th>端口</th>
+          <th>状态</th>
+          <th>原因</th>
+          <th>开始时间</th>
+          <th>结束时间</th>
+          <th>来源</th>
+          <th>触发类型</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in port_rows %}
+        <tr>
+          <td>{{ row.source_ip }}</td>
+          <td>{{ row.port }}</td>
+          <td><span class="badge badge-{{ 'danger' if row.active else 'secondary' }}">{{ "生效中" if row.active else "已解除" }}</span></td>
+          <td>{{ row.reason }}</td>
+          <td>{{ format_display_time(row.created_at) }}</td>
+          <td>{{ format_display_time(row.expires_at) or "永久" }}</td>
+          <td>{{ row.created_by }}</td>
+          <td>{{ row.trigger_attack_type or "手动" }}</td>
+          <td>
+            {% if row.active %}
+            <form method="post">
+              <input type="hidden" name="action" value="unblock_port">
+              <input type="hidden" name="source_ip" value="{{ row.source_ip }}">
+              <input type="hidden" name="port" value="{{ row.port }}">
+              <button type="submit">解除</button>
+            </form>
+            {% else %}
+            已解除
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9">暂无端口阻断记录。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

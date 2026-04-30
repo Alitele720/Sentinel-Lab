@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>员工登录</h2>
+  <p>请使用企业账号登录，访问项目审批、内部记录和协作信息。</p>
+  {% if message %}
+    <div class="flash flash-{{ tone }}">{{ message }}</div>
+  {% endif %}
+  <form method="post">
+    <label>用户名</label>
+    <input name="username" value="{{ username or '' }}" placeholder="请输入用户名">
+    <label>密码</label>
+    <input name="password" type="password" placeholder="请输入密码">
+    <button type="submit">登录</button>
+  </form>
+</section>
+{% endblock %}

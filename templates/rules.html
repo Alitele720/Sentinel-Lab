@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>新增规则</h2>
+  <form method="post">
+    <input type="hidden" name="action" value="add">
+    <label>规则名称</label>
+    <input name="name" required>
+    <label>攻击类型</label>
+    <select name="attack_type">
+      <option value="sql_injection">SQL 注入</option>
+      <option value="xss">XSS</option>
+    </select>
+    <label>匹配方式</label>
+    <select name="match_type">
+      <option value="keyword">关键字</option>
+      <option value="regex">正则</option>
+    </select>
+    <label>匹配内容</label>
+    <input name="pattern" required>
+    <label>评分</label>
+    <input name="score" type="number" min="1" value="1">
+    <label>说明</label>
+    <textarea name="description" rows="3"></textarea>
+    <button type="submit">新增规则</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>规则列表</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>名称</th>
+          <th>类型</th>
+          <th>匹配方式</th>
+          <th>匹配内容</th>
+          <th>评分</th>
+          <th>启用</th>
+          <th>说明</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <form method="post">
+            <td>{{ row.id }}<input type="hidden" name="rule_id" value="{{ row.id }}"></td>
+            <td><input name="name" value="{{ row.name }}"></td>
+            <td>
+              <select name="attack_type">
+                <option value="sql_injection" {% if row.attack_type == "sql_injection" %}selected{% endif %}>SQL 注入</option>
+                <option value="xss" {% if row.attack_type == "xss" %}selected{% endif %}>XSS</option>
+              </select>
+            </td>
+            <td>
+              <select name="match_type">
+                <option value="keyword" {% if row.match_type == "keyword" %}selected{% endif %}>关键字</option>
+                <option value="regex" {% if row.match_type == "regex" %}selected{% endif %}>正则</option>
+              </select>
+            </td>
+            <td><input name="pattern" value="{{ row.pattern }}"></td>
+            <td><input name="score" type="number" min="1" value="{{ row.score }}"></td>
+            <td>{{ "是" if row.enabled else "否" }}</td>
+            <td><input name="description" value="{{ row.description or '' }}"></td>
+            <td class="action-stack">
+              <button name="action" value="update" type="submit">保存</button>
+              <button name="action" value="toggle" type="submit">{{ "停用" if row.enabled else "启用" }}</button>
+              <button name="action" value="delete" type="submit" class="danger-button">删除</button>
+            </td>
+          </form>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

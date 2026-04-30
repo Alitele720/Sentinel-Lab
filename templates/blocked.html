@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card blocked-card">
+  <span class="eyebrow">访问已拦截</span>
+  <h2>该 IP 已被加入黑名单</h2>
+  <p>来源 IP：<code>{{ source_ip }}</code></p>
+  <p>请在黑名单页面解除封禁，或等待封禁时间结束后再访问。</p>
+</section>
+{% endblock %}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title or "Sentinel Lab" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="shell">
+      <div class="brand">
+        <div class="brand-mark">IDS</div>
+        <div>
+          <h1>Sentinel Lab</h1>
+          <p>Web IDS 与蜜罐演示平台</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="{{ url_for('index') }}">首页</a>
+        <a href="{{ url_for('portal') }}">办公入口</a>
+        <a href="{{ url_for('search') }}">内部查询</a>
+        <a href="{{ url_for('contact') }}">服务工单</a>
+        {% set current_ip = g.effective_ip if g is defined and g.effective_ip is defined else request.remote_addr %}
+        {% if admin_allowed_for_ip(current_ip) and is_admin_authenticated() %}
+        <a href="{{ url_for('admin_home') }}">进入后台</a>
+        <a href="{{ url_for('admin_logout') }}">退出后台</a>
+        {% else %}
+        <a href="{{ url_for('admin_login') }}">管理登录</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <section class="flash-stack">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </section>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero card">
+  <div>
+    <span class="eyebrow">公开蜜罐页面</span>
+    <h2>Web 攻击检测演示入口</h2>
+    <p>这里模拟一个内部业务站点。访问、搜索、登录和提交表单都会进入 IDS 检测链路，用于演示 SQL 注入、XSS、暴力破解和敏感路径扫描。</p>
+  </div>
+</section>
+
+<section class="card">
+  <h3>推荐测试顺序</h3>
+  <p>先访问 <code>/search</code> 测试 SQL 注入，再访问 <code>/contact</code> 测试 XSS，然后在 <code>/portal</code> 连续提交错误密码测试暴力破解，最后访问 <code>/admin</code>、<code>/.env</code>、<code>/phpmyadmin</code> 测试路径探测。</p>
+</section>
+
+<section class="grid-two">
+  <article class="card">
+    <h3>测试入口</h3>
+    <p><a class="button-link" href="{{ url_for('search') }}">SQL 测试页面</a></p>
+    <p><a class="button-link" href="{{ url_for('contact') }}">XSS 测试页面</a></p>
+    <p><a class="button-link" href="{{ url_for('portal') }}">登录爆破测试页面</a></p>
+  </article>
+
+  <article class="card">
+    <h3>示例攻击载荷</h3>
+    <p>SQL 注入：<code>' or 1=1 --</code></p>
+    <p>XSS：<code>&lt;script&gt;alert(1)&lt;/script&gt;</code></p>
+    <p>路径探测：<code>/admin</code>、<code>/.env</code>、<code>/phpmyadmin</code></p>
+    <p>当前来源 IP：<code>{{ current_ip }}</code></p>
+  </article>
+</section>
+
+<section class="card">
+  <h3>结果查看位置</h3>
+  <p>测试完成后，请进入后台查看 <code>/dashboard</code>、<code>/alerts</code> 和 <code>/blacklist</code>，确认请求是否被记录、告警是否生成，以及是否触发自动封禁。</p>
+</section>
+{% endblock %}

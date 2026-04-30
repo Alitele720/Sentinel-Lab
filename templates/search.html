@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>内部资料查询</h2>
+  <form method="get">
+    <label>查询关键词</label>
+    <input name="q" value="{{ query or '' }}" placeholder="项目编号、员工姓名、供应商名称">
+    <button type="submit">查询</button>
+  </form>
+</section>
+{% if query %}
+<section class="card">
+  <h3>查询结果</h3>
+  {% for item in results %}
+    <div class="status-note">
+      <strong>{{ item.title }}</strong>
+      <p>{{ item.snippet }}</p>
+    </div>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

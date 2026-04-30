@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero card">
+  <div>
+    <span class="eyebrow">课程演示</span>
+    <h2>面向 Web 日志的入侵检测演示</h2>
+    <p>系统会记录请求并识别 SQL 注入、XSS、暴力破解、异常探测和端口扫描等行为。</p>
+    <div class="link-row">
+      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+      <a class="button-link" href="{{ url_for('dashboard') }}">查看仪表盘</a>
+      <a class="button-link" href="{{ url_for('blacklist') }}">查看黑名单</a>
+    </div>
+  </div>
+  <div class="hero-grid">
+    <div class="metric">
+      <span>累计请求</span>
+      <strong>{{ summary.request_total if summary else 0 }}</strong>
+    </div>
+    <div class="metric">
+      <span>累计告警</span>
+      <strong>{{ summary.alert_total if summary else 0 }}</strong>
+    </div>
+    <div class="metric">
+      <span>活跃黑名单</span>
+      <strong>{{ summary.blacklist_total if summary else 0 }}</strong>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h3>实验入口</h3>
+  <p>当前访问 IP 为 <code>{{ current_ip }}</code>。为避免本机白名单影响，建议使用 <code>demo_ip</code> 模拟攻击来源：<code>10.10.10.66</code> <code>10.10.10.67</code> <code>10.10.10.88</code> <code>10.10.10.99</code></p>
+</section>
+
+<section class="grid-two">
+  <article class="card lab-card">
+    <div class="lab-header">
+      <div>
+        <h3>SQL 注入实验</h3>
+        <p>示例：<code>' or 1=1 --</code>。提交后可在告警页查看结果。</p>
+      </div>
+      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+    </div>
+    <form id="sql-form" method="post" action="{{ url_for('lab_sql') }}">
+      <label>模拟来源 IP</label>
+      <input id="sql-demo-ip" name="demo_ip" value="{{ selected_demo_ip }}" placeholder="10.10.10.66">
+      <label>搜索参数</label>
+      <input id="sql-query-input" name="q" placeholder="' or 1=1 --" value="{{ sql_query or '' }}">
+      <button id="sql-submit-button" type="submit">提交 SQL 测试</button>
+    </form>
+    <div id="sql-feedback" class="feedback-panel{% if sql_feedback %} feedback-{{ sql_feedback.tone }}{% else %} is-hidden{% endif %}">
+      <strong id="sql-feedback-title">{{ sql_feedback.title if sql_feedback else "" }}</strong>
+      <p id="sql-feedback-message">{{ sql_feedback.message if sql_feedback else "" }}</p>
+    </div>
+    <div id="sql-result-box" class="result-box compact-result-box{% if not sql_results %} is-hidden{% endif %}">
+      <p class="tip">本次搜索参数：<code id="sql-query-display">{{ sql_query or "" }}</code></p>
+    </div>
+  </article>
+
+  <article class="card lab-card">
+    <div class="lab-header">
+      <div>
+        <h3>XSS 实验</h3>
+        <p>示例：<code>&lt;script&gt;alert(1)&lt;/script&gt;</code>。提交后可在告警页查看结果。</p>
+      </div>
+      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+    </div>
+    <form id="xss-form" method="post" action="{{ url_for('lab_xss') }}">
+      <label>模拟来源 IP</label>
+      <input id="xss-demo-ip" name="demo_ip" value="{{ selected_demo_ip }}" placeholder="10.10.10.67">
+      <label>留言内容</label>
+      <textarea id="xss-message-input" name="message" rows="4" placeholder="<script>alert(1)</script>">{{ xss_message or '' }}</textarea>
+      <button id="xss-submit-button" type="submit">提交 XSS 测试</button>
+    </form>
+    <div id="xss-feedback" class="feedback-panel{% if xss_feedback %} feedback-{{ xss_feedback.tone }}{% else %} is-hidden{% endif %}">
+      <strong id="xss-feedback-title">{{ xss_feedback.title if xss_feedback else "" }}</strong>
+      <p id="xss-feedback-message">{{ xss_feedback.message if xss_feedback else "" }}</p>
+    </div>
+    <div id="xss-safe-box" class="result-box{% if not xss_message %} is-hidden{% endif %}">
+      <strong>安全回显</strong>
+      <div id="xss-safe-echo">{{ xss_message or "" }}</div>
+    </div>
+  </article>
+</section>
+
+<section class="card lab-spotlight" id="bruteforce-lab" data-bruteforce-url="{{ url_for('lab_bruteforce') }}" data-reset-url="{{ url_for('reset_bruteforce') }}" data-state-url="{{ url_for('api_bruteforce_state') }}">
+  <div class="lab-header">
+    <div>
+      <h3>暴力破解实验</h3>
+      <p>支持手动登录和批量模拟失败尝试。</p>
+    </div>
+    <div class="pill-row">
+      <span class="status-pill status-{{ bruteforce_state.stage_key }}" id="bf-stage-pill">{{ bruteforce_state.stage_label }}</span>
+      <span class="status-pill status-neutral">观察 IP：<span id="bf-observe-ip">{{ bruteforce_state.source_ip }}</span></span>
+    </div>
+  </div>
+
+  <div id="bf-feedback" class="feedback-panel{% if bruteforce_feedback %} feedback-{{ bruteforce_feedback.tone }}{% else %} is-hidden{% endif %}">
+    <strong id="bf-feedback-title">{{ bruteforce_feedback.title if bruteforce_feedback else "" }}</strong>
+    <p id="bf-feedback-message">{{ bruteforce_feedback.message if bruteforce_feedback else "" }}</p>
+  </div>
+
+  <div class="grid-two">
+    <div>
+      <h4>当前状态</h4>
+      <div class="status-panel">
+        <div class="status-row">
+          <span>当前窗口失败次数</span>
+          <strong><span id="bf-failure-count">{{ bruteforce_state.failure_count }}</span> 次</strong>
+        </div>
+        <div class="status-row">
+          <span>检测窗口</span>
+          <strong><span id="bf-window-minutes">{{ bruteforce_state.window_minutes }}</span> 分钟</strong>
+        </div>
+        <div class="status-row">
+          <span>告警阈值</span>
+          <strong>低危 <span id="bf-low-threshold">{{ bruteforce_state.low_threshold }}</span> / 高危 <span id="bf-high-threshold">{{ bruteforce_state.high_threshold }}</span> / 封禁 <span id="bf-block-threshold">{{ bruteforce_state.block_threshold }}</span></strong>
+        </div>
+        <div class="status-row">
+          <span>当前阶段</span>
+          <strong id="bf-stage-label">{{ bruteforce_state.stage_label }}</strong>
+        </div>
+        <div class="status-row">
+          <span>黑名单状态</span>
+          <strong id="bf-blocked-text">{{ '已封禁' if bruteforce_state.blocked else '未封禁' }}</strong>
+        </div>
+        <div class="status-row{% if not bruteforce_state.blocked_until_display %} is-hidden{% endif %}" id="bf-blocked-row">
+          <span>封禁到期时间</span>
+          <strong id="bf-blocked-until">{{ bruteforce_state.blocked_until_display }}</strong>
+        </div>
+        <div class="status-note">
+          <strong>最近告警</strong>
+          <p id="bf-latest-summary">{{ bruteforce_state.latest_summary or '当前还没有暴力破解告警。' }}</p>
+          <p class="tip" id="bf-latest-created">{{ bruteforce_state.latest_created_at_display }}</p>
+        </div>
+      </div>
+
+      <div class="notice-box">
+        <strong>当前提示</strong>
+        <p id="bf-stage-hint">{{ bruteforce_state.stage_hint }}</p>
+        <p id="bf-next-hint">{{ bruteforce_state.next_hint }}</p>
+      </div>
+
+      <div class="criteria-box">
+        <strong>阈值说明</strong>
+        <div class="criteria-list">
+          <div class="criteria-item" id="bf-criteria-low">{{ bruteforce_state.window_minutes }} 分钟内失败 {{ bruteforce_state.low_threshold }} 次：低危告警</div>
+          <div class="criteria-item" id="bf-criteria-high">{{ bruteforce_state.window_minutes }} 分钟内失败 {{ bruteforce_state.high_threshold }} 次：高危告警</div>
+          <div class="criteria-item" id="bf-criteria-block">{{ bruteforce_state.window_minutes }} 分钟内失败 {{ bruteforce_state.block_threshold }} 次：自动加入黑名单</div>
+        </div>
+      </div>
+
+      <div class="notice-box danger-box{% if not bruteforce_state.blocked %} is-hidden{% endif %}" id="bf-block-notice">
+        <strong>该 IP 当前已被拦截</strong>
+        <p>请到黑名单页面查看，或先重置当前实验。</p>
+        <div class="link-row">
+          <a class="button-link" href="{{ url_for('blacklist') }}">查看黑名单</a>
+          <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h4>当前 demo_ip</h4>
+      <label>模拟来源 IP</label>
+      <input id="bf-demo-ip" value="{{ selected_demo_ip }}" placeholder="10.10.10.88">
+
+      <h4>手动登录实验</h4>
+      <form id="bf-manual-form" method="post" action="{{ url_for('lab_login') }}">
+        <input type="hidden" name="demo_ip" value="{{ selected_demo_ip }}" data-bf-hidden-ip>
+        <label>用户名</label>
+        <input name="username" value="admin">
+        <label>密码</label>
+        <input name="password" type="password" placeholder="输入错误密码会累计失败记录">
+        <button type="submit">提交一次手动登录</button>
+      </form>
+      <p class="tip">正确账号：<code>admin / password123</code></p>
+
+      <h4>批量模拟</h4>
+      <div id="bf-action-panel">
+        <div class="quick-action-grid">
+          <button type="button" data-bf-action="fail_once">失败 1 次</button>
+          <button type="button" data-bf-action="fail_5">失败 5 次</button>
+          <button type="button" data-bf-action="fail_10">失败 10 次</button>
+          <button type="button" data-bf-action="success_once" class="secondary-button">成功 1 次</button>
+        </div>
+        <div class="input-button-row">
+          <input id="bf-custom-count" type="number" min="1" max="50" placeholder="自定义失败次数，1-50">
+          <button type="button" data-bf-action="custom_count">自定义次数</button>
+        </div>
+      </div>
+
+      <div class="reset-form">
+        <button id="bf-reset-button" type="button" class="secondary-button">重置当前实验</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <article class="card lab-card">
+    <div class="lab-header">
+      <div>
+        <h3>端口扫描实验</h3>
+        <p>填写端口范围并提交，可在结果区和告警页查看状态。</p>
+      </div>
+      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+    </div>
+    <form id="portscan-form" method="post" action="{{ url_for('lab_portscan') }}">
+      <label>模拟来源 IP</label>
+      <input id="portscan-demo-ip" name="demo_ip" value="{{ selected_demo_ip }}" placeholder="10.10.10.99">
+      <p class="tip">目标主机：<code>{{ portscan_target_ip }}</code></p>
+      <div class="input-button-row">
+        <div>
+          <label>起始端口</label>
+          <input id="portscan-start-port" name="start_port" type="number" min="1" max="65535" value="{{ portscan_result.start_port if portscan_result else 20 }}">
+        </div>
+        <div>
+          <label>结束端口</label>
+          <input id="portscan-end-port" name="end_port" type="number" min="1" max="65535" value="{{ portscan_result.end_port if portscan_result else 40 }}">
+        </div>
+      </div>
+      <button id="portscan-submit-button" type="submit">提交端口扫描</button>
+    </form>
+    <div id="portscan-feedback" class="feedback-panel{% if portscan_feedback %} feedback-{{ portscan_feedback.tone }}{% else %} is-hidden{% endif %}">
+      <strong id="portscan-feedback-title">{{ portscan_feedback.title if portscan_feedback else "" }}</strong>
+      <p id="portscan-feedback-message">{{ portscan_feedback.message if portscan_feedback else "" }}</p>
+    </div>
+    <div id="portscan-result-box" class="result-box{% if not portscan_result %} is-hidden{% endif %}">
+      <strong>本次扫描</strong>
+      <div class="status-panel compact-panel">
+        <div class="status-row"><span>目标主机</span><strong id="portscan-result-target">{{ portscan_result.target_ip if portscan_result else portscan_target_ip }}</strong></div>
+        <div class="status-row"><span>端口范围</span><strong id="portscan-result-range">{% if portscan_result %}{{ portscan_result.start_port }} - {{ portscan_result.end_port }}{% else %}20 - 40{% endif %}</strong></div>
+        <div class="status-row"><span>唯一端口数</span><strong id="portscan-result-unique">{{ portscan_result.unique_ports if portscan_result else portscan_state.unique_port_count }}</strong></div>
+        <div class="status-row"><span>黑名单状态</span><strong id="portscan-result-blocked">{{ '已封禁' if (portscan_result and portscan_result.blocked) or portscan_state.blocked else '未封禁' }}</strong></div>
+        <div class="status-row{% if not ((portscan_result and portscan_result.blocked_until_display) or portscan_state.blocked_until_display) %} is-hidden{% endif %}" id="portscan-blocked-row">
+          <span>封禁到期时间</span>
+          <strong id="portscan-result-blocked-until">{{ portscan_result.blocked_until_display if portscan_result else portscan_state.blocked_until_display }}</strong>
+        </div>
+        <div class="status-note">
+          <strong>最近告警</strong>
+          <p id="portscan-result-summary">{{ portscan_result.summary if portscan_result and portscan_result.summary else portscan_state.latest_summary or '当前还没有端口扫描告警。' }}</p>
+          <p class="tip" id="portscan-result-created">{{ portscan_state.latest_created_at_display }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="criteria-box">
+      <strong>阈值说明</strong>
+      <div class="criteria-list">
+        <div class="criteria-item">{{ portscan_state.window_minutes }} 分钟内命中 {{ portscan_state.low_threshold }} 个唯一端口：触发告警</div>
+        <div class="criteria-item">{{ portscan_state.window_minutes }} 分钟内命中 {{ portscan_state.high_threshold }} 个唯一端口：升级并自动封禁</div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section>
+  <article class="card lab-card">
+    <div class="lab-header">
+      <div>
+        <h3>异常探测实验</h3>
+        <p>选择路径后提交，可在结果区和告警页查看状态。</p>
+      </div>
+      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+    </div>
+    <label>模拟来源 IP</label>
+    <input id="scan-demo-ip" value="{{ selected_demo_ip }}" placeholder="10.10.10.99">
+    <div class="link-row action-row">
+      {% for item in scan_demo_urls %}
+        <button type="button" class="secondary-button scan-action-button" data-scan-url="{{ item.url }}" data-scan-path="{{ item.label }}">{{ item.label }} 探测</button>
+      {% endfor %}
+    </div>
+    <div id="scan-feedback" class="feedback-panel is-hidden">
+      <strong id="scan-feedback-title"></strong>
+      <p id="scan-feedback-message"></p>
+    </div>
+    <div id="scan-result-box" class="result-box is-hidden">
+      <strong>最近一次结果</strong>
+      <div class="status-panel compact-panel">
+        <div class="status-row"><span>探测目标</span><strong id="scan-target-path">-</strong></div>
+        <div class="status-row"><span>HTTP 状态码</span><strong id="scan-status-code">-</strong></div>
+        <div class="status-note"><strong>响应摘要</strong><p id="scan-response-summary">当前还没有执行探测。</p></div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<script src="{{ url_for('static', filename='js/index.js') }}"></script>
+{% endblock %}

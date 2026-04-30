@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>服务工单</h2>
+  <p>可在此提交终端故障、权限申请、供应商接入等支持请求。</p>
+  {% if submitted %}
+    <div class="flash flash-success">工单已提交，运维支持会尽快联系您。</div>
+  {% endif %}
+  <form method="post">
+    <label>姓名</label>
+    <input name="name" placeholder="请输入姓名">
+    <label>邮箱</label>
+    <input name="email" placeholder="name@example.local">
+    <label>问题描述</label>
+    <textarea name="message" rows="5" placeholder="请描述您遇到的问题"></textarea>
+    <button type="submit">提交工单</button>
+  </form>
+</section>
+{% endblock %}

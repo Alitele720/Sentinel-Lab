@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>阈值与系统配置</h2>
+  <p>保存后立即生效。</p>
+  <form method="post" class="config-grid">
+    <input type="hidden" name="action" value="save">
+    {% for row in rows %}
+    <label>
+      <span>{{ row.key }}</span>
+      <small>{{ row.description }}</small>
+      <input name="{{ row.key }}" value="{{ row.value }}">
+    </label>
+    {% endfor %}
+    <div class="config-actions">
+      <button type="submit">保存配置</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

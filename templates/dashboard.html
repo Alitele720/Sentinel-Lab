@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero card">
+  <div>
+    <span class="eyebrow">后台管理</span>
+    <h2>安全监控仪表盘</h2>
+    <div class="link-row">
+      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+      <a class="button-link" href="{{ url_for('blacklist') }}">黑名单管理</a>
+      <a class="button-link" href="{{ url_for('rules') }}">规则管理</a>
+      <a class="button-link" href="{{ url_for('config') }}">阈值配置</a>
+    </div>
+  </div>
+</section>
+
+<section class="stats-grid" id="dashboard-root" data-stats-url="{{ url_for('api_stats') }}">
+  <div class="card metric-card">
+    <span>今日请求</span>
+    <strong>{{ stats.today_requests }}</strong>
+  </div>
+  <div class="card metric-card">
+    <span>今日告警</span>
+    <strong>{{ stats.today_alerts }}</strong>
+  </div>
+  <div class="card metric-card">
+    <span>生效黑名单</span>
+    <strong>{{ stats.active_blacklist }}</strong>
+  </div>
+  <div class="card metric-card">
+    <span>高危告警</span>
+    <strong>{{ stats.high_alerts }}</strong>
+  </div>
+</section>
+
+<section class="grid-two">
+  <article class="card">
+    <h3>最近 5 分钟实时流量</h3>
+    <div id="requests-chart" class="chart"></div>
+  </article>
+  <article class="card">
+    <h3>攻击类型分布</h3>
+    <div id="attacks-chart" class="chart"></div>
+  </article>
+</section>
+
+<section class="grid-two">
+  <article class="card">
+    <h3>高频攻击来源 IP</h3>
+    <div id="ips-chart" class="chart"></div>
+  </article>
+  <article class="card">
+    <h3>最近告警</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>时间</th>
+            <th>IP</th>
+            <th>类型</th>
+            <th>等级</th>
+            <th>摘要</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in recent_alerts %}
+          <tr>
+            <td>{{ format_display_time(row.created_at) }}</td>
+            <td>{{ row.source_ip }}</td>
+            <td>{{ attack_type_label(row.attack_type) }}</td>
+            <td><span class="badge badge-{{ severity_badge(row.severity) }}">{{ row.severity }}</span></td>
+            <td>{{ row.summary }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5">暂无告警数据。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>
+
+<section class="card danger-box">
+  <h2>危险操作</h2>
+  <p>将清空实验记录与 <code>data/access.log</code>，不会删除规则和系统配置。</p>
+  <form method="post" action="{{ url_for('config') }}" onsubmit="return confirm('将清空实验记录且不可恢复，是否继续？');">
+    <input type="hidden" name="action" value="clear_records">
+    <input type="hidden" name="redirect_to" value="dashboard">
+    <button type="submit" class="danger-button">清空实验记录</button>
+  </form>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

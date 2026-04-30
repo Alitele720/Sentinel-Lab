@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card blocked-card">
+  <span class="eyebrow">端口已阻断</span>
+  <h2>该来源当前访问的服务端口已被阻断</h2>
+  <p>来源 IP：<code>{{ source_ip }}</code></p>
+  <p>阻断端口：<code>{{ blocked_port }}</code></p>
+  <p>阻断原因：{{ reason }}</p>
+  {% if blocked_until %}
+  <p>预计解除时间：{{ blocked_until }}</p>
+  {% endif %}
+  <p>请到黑名单页面解除阻断，或等待阻断时间结束后再访问。</p>
+</section>
+{% endblock %}

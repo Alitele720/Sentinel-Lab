@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>管理登录</h2>
+  <p>后台页面仅允许来自授权管理员 IP 的访问请求。</p>
+  {% if error %}
+    <div class="flash flash-warning">{{ error }}</div>
+  {% endif %}
+  <form method="post">
+    <label>管理员账号</label>
+    <input name="username" placeholder="请输入管理员账号">
+    <label>管理员密码</label>
+    <input name="password" type="password" placeholder="请输入管理员密码">
+    <button type="submit">登录后台</button>
+  </form>
+</section>
+{% endblock %}
