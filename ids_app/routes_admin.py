@@ -20,6 +20,7 @@ from .lab import (
     resolve_demo_ip,
     wants_json_response,
 )
+from .runtime import runtime
 from .security import admin_required, clear_admin_auth, labs_access_allowed, mark_admin_authenticated
 from .storage import (
     attack_type_label,
@@ -284,6 +285,8 @@ def register_admin_routes(app):
         db = get_db()
         def bucket_time(value, *, minute=0, second=0, microsecond=0):
             return to_china_time(value).replace(minute=minute, second=second, microsecond=microsecond)
+        def severity_rank(value):
+            return {"low": 1, "medium": 2, "high": 3}.get(value, 0)
         now_utc = utc_now()
         since = to_iso(now_utc - timedelta(hours=24))
         request_rows = db.execute("SELECT timestamp FROM request_logs WHERE timestamp >= ? ORDER BY timestamp", (since,)).fetchall()
@@ -314,6 +317,7 @@ def register_admin_routes(app):
         realtime_request_counts = {bucket: 0 for bucket in realtime_buckets}
         realtime_connection_counts = {bucket: 0 for bucket in realtime_buckets}
         realtime_cutoff = realtime_buckets[0]
+        realtime_cutoff_iso = to_iso(realtime_cutoff)
         for row in request_rows:
             try:
                 event_time = to_china_time(parse_iso(row["timestamp"]))
@@ -334,7 +338,89 @@ def register_admin_routes(app):
             bucket = event_time - timedelta(seconds=event_time.second % 5, microseconds=event_time.microsecond)
             if bucket in realtime_connection_counts:
                 realtime_connection_counts[bucket] += 1
-        return jsonify({"requestsByHour": [{"hour": bucket.strftime("%H:00"), "total": request_counts[bucket]} for bucket in hour_buckets], "trafficByHour": [{"hour": bucket.strftime("%H:00"), "request_total": request_counts[bucket], "connection_total": connection_counts[bucket]} for bucket in hour_buckets], "trafficRealtime": [{"time": bucket.strftime("%H:%M:%S"), "request_total": realtime_request_counts[bucket], "connection_total": realtime_connection_counts[bucket]} for bucket in realtime_buckets], "attacksByType": [{"type": attack_type_label(row["attack_type"]), "total": row["total"]} for row in attack_rows], "topAttackIps": [{"ip": row["source_ip"], "total": row["total"]} for row in ip_rows]})
+        recent_connection_summary = db.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COUNT(DISTINCT source_ip) AS unique_sources,
+                COUNT(DISTINCT target_port) AS unique_target_ports
+            FROM connection_events
+            WHERE timestamp >= ?
+            """,
+            (realtime_cutoff_iso,),
+        ).fetchone()
+        top_connection_sources = db.execute(
+            """
+            SELECT source_ip, COUNT(*) AS total
+            FROM connection_events
+            WHERE timestamp >= ?
+            GROUP BY source_ip
+            ORDER BY total DESC, source_ip ASC
+            LIMIT 5
+            """,
+            (realtime_cutoff_iso,),
+        ).fetchall()
+        top_target_ports = db.execute(
+            """
+            SELECT target_port, COUNT(*) AS total
+            FROM connection_events
+            WHERE timestamp >= ?
+            GROUP BY target_port
+            ORDER BY total DESC, target_port ASC
+            LIMIT 5
+            """,
+            (realtime_cutoff_iso,),
+        ).fetchall()
+        recent_port_scan_rows = db.execute(
+            """
+            SELECT severity
+            FROM attack_events
+            WHERE attack_type = 'port_scan'
+              AND created_at >= ?
+            """,
+            (realtime_cutoff_iso,),
+        ).fetchall()
+        highest_severity = None
+        if recent_port_scan_rows:
+            highest_severity = max((row["severity"] for row in recent_port_scan_rows), key=severity_rank)
+        capture_thread = runtime.portscan_capture_thread
+        capture_enabled = bool(app.config.get("PORTSCAN_CAPTURE_ENABLED", False))
+        capture_running = bool(capture_thread and capture_thread.is_alive())
+        if capture_enabled and capture_running:
+            capture_state = "running"
+            capture_label = "开启"
+        elif capture_enabled:
+            capture_state = "stopped"
+            capture_label = "异常未知"
+        else:
+            capture_state = "disabled"
+            capture_label = "关闭"
+        return jsonify({
+            "captureStatus": {
+                "enabled": capture_enabled,
+                "running": capture_running,
+                "state": capture_state,
+                "label": capture_label,
+                "interface": app.config.get("PORTSCAN_CAPTURE_INTERFACE", "") or "默认网卡",
+                "filter": app.config.get("PORTSCAN_CAPTURE_FILTER", "tcp"),
+            },
+            "requestsByHour": [{"hour": bucket.strftime("%H:00"), "total": request_counts[bucket]} for bucket in hour_buckets],
+            "trafficByHour": [{"hour": bucket.strftime("%H:00"), "request_total": request_counts[bucket], "connection_total": connection_counts[bucket]} for bucket in hour_buckets],
+            "trafficRealtime": [{"time": bucket.strftime("%H:%M:%S"), "request_total": realtime_request_counts[bucket], "connection_total": realtime_connection_counts[bucket]} for bucket in realtime_buckets],
+            "recentConnectionSummary": {
+                "total": recent_connection_summary["total"] or 0,
+                "unique_sources": recent_connection_summary["unique_sources"] or 0,
+                "unique_target_ports": recent_connection_summary["unique_target_ports"] or 0,
+            },
+            "topConnectionSources": [{"ip": row["source_ip"], "total": row["total"]} for row in top_connection_sources],
+            "topTargetPorts": [{"port": row["target_port"], "total": row["total"]} for row in top_target_ports],
+            "recentPortScanAlerts": {
+                "total": len(recent_port_scan_rows),
+                "highest_severity": highest_severity,
+            },
+            "attacksByType": [{"type": attack_type_label(row["attack_type"]), "total": row["total"]} for row in attack_rows],
+            "topAttackIps": [{"ip": row["source_ip"], "total": row["total"]} for row in ip_rows],
+        })
 
     @app.route("/alerts")
     @admin_required

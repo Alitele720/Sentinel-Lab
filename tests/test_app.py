@@ -634,7 +634,21 @@ class AppTestCase(unittest.TestCase):
         response = self.client.get("/api/stats")
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
-        self.assertEqual(sorted(data.keys()), ["attacksByType", "requestsByHour", "topAttackIps", "trafficByHour", "trafficRealtime"])
+        self.assertEqual(
+            sorted(data.keys()),
+            [
+                "attacksByType",
+                "captureStatus",
+                "recentConnectionSummary",
+                "recentPortScanAlerts",
+                "requestsByHour",
+                "topAttackIps",
+                "topConnectionSources",
+                "topTargetPorts",
+                "trafficByHour",
+                "trafficRealtime",
+            ],
+        )
         self.assertEqual(len(data["trafficByHour"]), 24)
         self.assertEqual(len(data["trafficRealtime"]), 60)
 
@@ -649,6 +663,13 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(len(data["trafficRealtime"]), 60)
         self.assertTrue(all(item["request_total"] == 0 for item in data["trafficRealtime"]))
         self.assertTrue(all(item["connection_total"] == 0 for item in data["trafficRealtime"]))
+        self.assertEqual(data["captureStatus"]["state"], "disabled")
+        self.assertFalse(data["captureStatus"]["enabled"])
+        self.assertEqual(data["captureStatus"]["interface"], "默认网卡")
+        self.assertEqual(data["recentConnectionSummary"], {"total": 0, "unique_sources": 0, "unique_target_ports": 0})
+        self.assertEqual(data["topConnectionSources"], [])
+        self.assertEqual(data["topTargetPorts"], [])
+        self.assertEqual(data["recentPortScanAlerts"], {"total": 0, "highest_severity": None})
 
     def test_stats_api_aggregates_request_and_connection_traffic_by_hour(self):
         timestamp = to_iso(utc_now())
@@ -703,6 +724,49 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(sum(item["request_total"] for item in data["trafficRealtime"]), 1)
         self.assertEqual(sum(item["connection_total"] for item in data["trafficRealtime"]), 1)
         self.assertTrue(any(item["request_total"] == 1 and item["connection_total"] == 1 for item in data["trafficRealtime"]))
+        self.assertEqual(data["recentConnectionSummary"], {"total": 1, "unique_sources": 1, "unique_target_ports": 1})
+        self.assertEqual(data["topConnectionSources"], [{"ip": "10.10.10.81", "total": 1}])
+        self.assertEqual(data["topTargetPorts"], [{"port": 443, "total": 1}])
+
+    def test_stats_api_summarizes_recent_connection_sources_ports_and_portscan_alerts(self):
+        records = [
+            build_connection_event("10.10.10.90", "127.0.0.1", 22),
+            build_connection_event("10.10.10.90", "127.0.0.1", 80),
+            build_connection_event("10.10.10.91", "127.0.0.1", 80),
+        ]
+        push_connection_events_to_pipeline(records)
+        db = self.get_db()
+        try:
+            db.execute(
+                """
+                INSERT INTO attack_events(
+                    created_at, source_ip, attack_type, severity, score,
+                    threshold_value, matched_rules, request_path, summary
+                )
+                VALUES (?, ?, 'port_scan', 'high', 20, 20, ?, ?, ?)
+                """,
+                (
+                    to_iso(utc_now()),
+                    "10.10.10.90",
+                    "[]",
+                    "tcp://127.0.0.1",
+                    "unit test port scan",
+                ),
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.get("/api/stats")
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+
+        self.assertEqual(data["recentConnectionSummary"], {"total": 3, "unique_sources": 2, "unique_target_ports": 2})
+        self.assertEqual(data["topConnectionSources"][0], {"ip": "10.10.10.90", "total": 2})
+        self.assertIn({"ip": "10.10.10.91", "total": 1}, data["topConnectionSources"])
+        self.assertEqual(data["topTargetPorts"][0], {"port": 80, "total": 2})
+        self.assertIn({"port": 22, "total": 1}, data["topTargetPorts"])
+        self.assertEqual(data["recentPortScanAlerts"], {"total": 1, "highest_severity": "high"})
 
     def test_connection_events_are_persisted(self):
         push_connection_events_to_pipeline([build_connection_event("10.10.10.66", "192.168.1.10", 22)])

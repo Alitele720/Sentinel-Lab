@@ -33,9 +33,28 @@
 </section>
 
 <section class="grid-two">
-  <article class="card">
-    <h3>最近 5 分钟实时流量</h3>
+  <article class="card traffic-card">
+    <div class="card-title-row">
+      <h3>最近 5 分钟实时探测态势</h3>
+      <span id="capture-status" class="status-chip">真实抓包：加载中</span>
+    </div>
+    <div class="traffic-meta">
+      <span id="capture-detail">正在读取抓包状态...</span>
+      <span id="connection-summary">TCP 探测 0 次 / 0 个来源 / 0 个端口</span>
+      <span id="portscan-alert-summary">端口扫描告警 0 条</span>
+    </div>
     <div id="requests-chart" class="chart"></div>
+    <p id="connection-empty-state" class="tip traffic-empty-state" hidden>最近 5 分钟暂无 TCP 探测事件。</p>
+    <div class="traffic-rank-grid">
+      <div>
+        <h4>TCP 探测来源</h4>
+        <ul id="top-connection-sources" class="compact-list"></ul>
+      </div>
+      <div>
+        <h4>目标端口</h4>
+        <ul id="top-target-ports" class="compact-list"></ul>
+      </div>
+    </div>
   </article>
   <article class="card">
     <h3>攻击类型分布</h3>

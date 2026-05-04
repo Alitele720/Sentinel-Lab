@@ -31,6 +31,7 @@
     if (Array.isArray(data.trafficRealtime) && data.trafficRealtime.length) {
       return data.trafficRealtime.map((item) => ({
         time: item.time.slice(3),
+        full_time: item.time,
         request_total: item.request_total,
         connection_total: item.connection_total,
       }));
@@ -38,12 +39,14 @@
     if (Array.isArray(data.trafficByHour) && data.trafficByHour.length) {
       return data.trafficByHour.map((item) => ({
         time: item.hour,
+        full_time: item.hour,
         request_total: item.request_total,
         connection_total: item.connection_total,
       }));
     }
     return (data.requestsByHour || []).map((item) => ({
       time: item.hour,
+      full_time: item.hour,
       request_total: item.total,
       connection_total: 0,
     }));
@@ -69,11 +72,21 @@
 
   function updateTrafficChart(data) {
     const trafficSeries = buildTrafficSeries(data);
+    const hasConnectionTraffic = trafficSeries.some((item) => item.connection_total > 0);
     trafficChart.setOption({
       animationDurationUpdate: 600,
       animationEasingUpdate: "cubicOut",
-      tooltip: { trigger: "axis" },
-      legend: { data: ["Web 请求", "连接事件"] },
+      color: ["#5470c6", "#0b8f6a"],
+      tooltip: {
+        trigger: "axis",
+        formatter(params) {
+          const index = params[0]?.dataIndex || 0;
+          const point = trafficSeries[index] || {};
+          const rows = params.map((item) => `${item.marker}${item.seriesName}: ${item.value}`);
+          return [`时间：${point.full_time || point.time}`, ...rows].join("<br>");
+        },
+      },
+      legend: { data: ["Web 请求", "TCP 探测"] },
       xAxis: { type: "category", boundaryGap: false, data: trafficSeries.map((item) => item.time) },
       yAxis: { type: "value" },
       series: [
@@ -86,14 +99,64 @@
           areaStyle: {},
         },
         {
-          name: "连接事件",
+          name: "TCP 探测",
           type: "line",
           smooth: true,
-          showSymbol: false,
+          showSymbol: hasConnectionTraffic,
           data: trafficSeries.map((item) => item.connection_total),
+          lineStyle: { width: 3, type: hasConnectionTraffic ? "solid" : "dashed" },
+          areaStyle: { opacity: hasConnectionTraffic ? 0.12 : 0 },
         },
       ],
     });
+  }
+
+  function renderRankList(nodeId, rows, emptyText, formatLabel) {
+    const node = document.getElementById(nodeId);
+    if (!node) {
+      return;
+    }
+    if (!Array.isArray(rows) || !rows.length) {
+      node.innerHTML = `<li class="empty">${emptyText}</li>`;
+      return;
+    }
+    node.innerHTML = rows
+      .map((row) => `<li><span>${formatLabel(row)}</span><strong>${row.total}</strong></li>`)
+      .join("");
+  }
+
+  function updateTrafficIntel(data) {
+    const capture = data.captureStatus || {};
+    const summary = data.recentConnectionSummary || {};
+    const alerts = data.recentPortScanAlerts || {};
+    const statusNode = document.getElementById("capture-status");
+    const detailNode = document.getElementById("capture-detail");
+    const summaryNode = document.getElementById("connection-summary");
+    const alertNode = document.getElementById("portscan-alert-summary");
+    const emptyNode = document.getElementById("connection-empty-state");
+    if (statusNode) {
+      statusNode.textContent = `真实抓包：${capture.label || "未知"}`;
+      statusNode.dataset.state = capture.state || "unknown";
+    }
+    if (detailNode) {
+      if (capture.enabled) {
+        detailNode.textContent = `接口：${capture.interface || "默认网卡"} / 过滤器：${capture.filter || "tcp"}`;
+      } else {
+        detailNode.textContent = "真实抓包未启用，连接事件可能来自实验管线。";
+      }
+    }
+    if (summaryNode) {
+      summaryNode.textContent = `TCP 探测 ${summary.total || 0} 次 / ${summary.unique_sources || 0} 个来源 / ${summary.unique_target_ports || 0} 个端口`;
+    }
+    if (alertNode) {
+      const severity = alerts.highest_severity ? `，最高 ${alerts.highest_severity}` : "";
+      alertNode.textContent = `端口扫描告警 ${alerts.total || 0} 条${severity}`;
+    }
+    if (emptyNode) {
+      emptyNode.hidden = Boolean(summary.total);
+    }
+    renderRankList("top-connection-sources", data.topConnectionSources, "暂无来源", (row) => row.ip);
+    renderRankList("top-target-ports", data.topTargetPorts, "暂无端口", (row) => `TCP/${row.port}`);
   }
 
   function updateStaticCharts(data) {
@@ -138,6 +201,7 @@
         return;
       }
       updateTrafficChart(data);
+      updateTrafficIntel(data);
       if (!attacksChart.getOption().series) {
         updateStaticCharts(data);
       }
@@ -154,6 +218,7 @@
       return;
     }
     updateTrafficChart(data);
+    updateTrafficIntel(data);
     updateStaticCharts(data);
   }
 

@@ -164,6 +164,118 @@ main.shell {
   gap: 20px;
 }
 
+.traffic-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.card-title-row h3 {
+  margin: 0;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.status-chip[data-state="running"] {
+  border-color: #9fd4be;
+  background: var(--success-soft);
+  color: var(--brand);
+}
+
+.status-chip[data-state="stopped"],
+.status-chip[data-state="unknown"] {
+  border-color: #e8b9b9;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.traffic-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.traffic-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid rgba(213, 203, 187, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.traffic-empty-state {
+  margin: -8px 0 14px;
+}
+
+.traffic-rank-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.traffic-rank-grid h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.compact-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compact-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid rgba(213, 203, 187, 0.7);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.compact-list span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-list strong {
+  color: var(--brand);
+}
+
+.compact-list .empty {
+  color: var(--muted);
+}
+
 .lab-spotlight {
   border-color: rgba(11, 93, 82, 0.35);
   background:
@@ -591,10 +703,15 @@ code {
   .site-header .shell,
   .lab-header,
   .section-head,
+  .card-title-row,
   .link-row,
   .pill-row,
   .status-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .traffic-rank-grid {
+    grid-template-columns: 1fr;
   }
 }
