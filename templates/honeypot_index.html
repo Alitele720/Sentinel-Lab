@@ -15,6 +15,21 @@
 
 <section class="grid-two">
   <article class="card">
+    <h3>异常探测测试说明</h3>
+    <p>连续访问敏感路径会被记录为异常探测行为，例如 <code>/admin</code>、<code>/.env</code>、<code>/phpmyadmin</code>、<code>/wp-admin</code>、<code>/manager/html</code>。</p>
+    <p>默认短时间内命中 5 次敏感路径后，会在告警页生成“异常探测”告警。</p>
+  </article>
+
+  <article class="card">
+    <h3>真实端口扫描测试说明</h3>
+    <p>请在另一台局域网主机上安装或打开端口扫描工具，例如 Nmap。</p>
+    <p>确认本服务启动终端中打印的局域网访问地址，例如 <code>192.168.x.x</code>。</p>
+    <p>在另一台主机执行 <code>nmap 192.168.x.x</code> 发起扫描。达到阈值后，告警页会出现“端口扫描”。</p>
+  </article>
+</section>
+
+<section class="grid-two">
+  <article class="card">
     <h3>测试入口</h3>
     <p><a class="button-link" href="{{ url_for('search') }}">SQL 测试页面</a></p>
     <p><a class="button-link" href="{{ url_for('contact') }}">XSS 测试页面</a></p>

@@ -208,6 +208,14 @@
     </div>
     <label>模拟来源 IP</label>
     <input id="scan-demo-ip" value="{{ selected_demo_ip }}" placeholder="10.10.10.99">
+    <div class="criteria-box">
+      <strong>测试说明</strong>
+      <div class="criteria-list">
+        <div class="criteria-item">连续点击多个敏感路径探测按钮，系统会累计同一来源 IP 的敏感路径访问和 404 结果。</div>
+        <div class="criteria-item">默认短时间内命中 5 次敏感路径后，会在告警页生成“异常探测”告警。</div>
+        <div class="criteria-item">也可以手动访问 <code>/admin</code>、<code>/.env</code>、<code>/phpmyadmin</code>、<code>/wp-admin</code>、<code>/manager/html</code> 进行测试。</div>
+      </div>
+    </div>
     <div class="link-row action-row">
       {% for item in scan_demo_urls %}
         <button type="button" class="secondary-button scan-action-button" data-scan-url="{{ item.url }}" data-scan-path="{{ item.label }}">{{ item.label }} 探测</button>
@@ -225,6 +233,28 @@
         <div class="status-note"><strong>响应摘要</strong><p id="scan-response-summary">当前还没有执行探测。</p></div>
       </div>
     </div>
+  </article>
+</section>
+
+<section>
+  <article class="card lab-card">
+    <div class="lab-header">
+      <div>
+        <h3>真实端口扫描测试</h3>
+        <p>端口扫描检测来自本机抓包，不再提供页面模拟提交。</p>
+      </div>
+      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
+    </div>
+    <div class="criteria-box">
+      <strong>测试步骤</strong>
+      <div class="criteria-list">
+        <div class="criteria-item">在另一台局域网主机上安装或打开端口扫描工具，例如 Nmap。</div>
+        <div class="criteria-item">确认本服务启动终端中打印的局域网访问地址，例如 <code>192.168.x.x</code>。</div>
+        <div class="criteria-item">从另一台主机执行 <code>nmap 192.168.x.x</code> 发起扫描，不要在本机扫描本机。</div>
+        <div class="criteria-item">达到阈值后，告警页会出现“端口扫描”；高危时会自动加入黑名单并触发端口阻断。</div>
+      </div>
+    </div>
+    <p class="tip">默认阈值可在配置页调整：1 分钟内 10 个唯一端口触发告警，20 个唯一端口升级并自动封禁。</p>
   </article>
 </section>
 

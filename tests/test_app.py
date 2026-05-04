@@ -74,6 +74,7 @@ class AppTestCase(unittest.TestCase):
             "ADMIN_ALLOWED_IPS": ["127.0.0.1", "::1"],
             "EXPOSE_LABS": True,
             "SYNC_INGEST_REAL_REQUESTS": True,
+            "PORTSCAN_CAPTURE_ENABLED": False,
             "TRUST_PROXY": False,
             "TRUSTED_PROXY_IPS": [],
         }
