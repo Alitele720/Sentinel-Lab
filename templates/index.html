@@ -201,63 +201,6 @@
   <article class="card lab-card">
     <div class="lab-header">
       <div>
-        <h3>端口扫描实验</h3>
-        <p>填写端口范围并提交，可在结果区和告警页查看状态。</p>
-      </div>
-      <a class="button-link" href="{{ url_for('alerts') }}">查看告警</a>
-    </div>
-    <form id="portscan-form" method="post" action="{{ url_for('lab_portscan') }}">
-      <label>模拟来源 IP</label>
-      <input id="portscan-demo-ip" name="demo_ip" value="{{ selected_demo_ip }}" placeholder="10.10.10.99">
-      <p class="tip">目标主机：<code>{{ portscan_target_ip }}</code></p>
-      <div class="input-button-row">
-        <div>
-          <label>起始端口</label>
-          <input id="portscan-start-port" name="start_port" type="number" min="1" max="65535" value="{{ portscan_result.start_port if portscan_result else 20 }}">
-        </div>
-        <div>
-          <label>结束端口</label>
-          <input id="portscan-end-port" name="end_port" type="number" min="1" max="65535" value="{{ portscan_result.end_port if portscan_result else 40 }}">
-        </div>
-      </div>
-      <button id="portscan-submit-button" type="submit">提交端口扫描</button>
-    </form>
-    <div id="portscan-feedback" class="feedback-panel{% if portscan_feedback %} feedback-{{ portscan_feedback.tone }}{% else %} is-hidden{% endif %}">
-      <strong id="portscan-feedback-title">{{ portscan_feedback.title if portscan_feedback else "" }}</strong>
-      <p id="portscan-feedback-message">{{ portscan_feedback.message if portscan_feedback else "" }}</p>
-    </div>
-    <div id="portscan-result-box" class="result-box{% if not portscan_result %} is-hidden{% endif %}">
-      <strong>本次扫描</strong>
-      <div class="status-panel compact-panel">
-        <div class="status-row"><span>目标主机</span><strong id="portscan-result-target">{{ portscan_result.target_ip if portscan_result else portscan_target_ip }}</strong></div>
-        <div class="status-row"><span>端口范围</span><strong id="portscan-result-range">{% if portscan_result %}{{ portscan_result.start_port }} - {{ portscan_result.end_port }}{% else %}20 - 40{% endif %}</strong></div>
-        <div class="status-row"><span>唯一端口数</span><strong id="portscan-result-unique">{{ portscan_result.unique_ports if portscan_result else portscan_state.unique_port_count }}</strong></div>
-        <div class="status-row"><span>黑名单状态</span><strong id="portscan-result-blocked">{{ '已封禁' if (portscan_result and portscan_result.blocked) or portscan_state.blocked else '未封禁' }}</strong></div>
-        <div class="status-row{% if not ((portscan_result and portscan_result.blocked_until_display) or portscan_state.blocked_until_display) %} is-hidden{% endif %}" id="portscan-blocked-row">
-          <span>封禁到期时间</span>
-          <strong id="portscan-result-blocked-until">{{ portscan_result.blocked_until_display if portscan_result else portscan_state.blocked_until_display }}</strong>
-        </div>
-        <div class="status-note">
-          <strong>最近告警</strong>
-          <p id="portscan-result-summary">{{ portscan_result.summary if portscan_result and portscan_result.summary else portscan_state.latest_summary or '当前还没有端口扫描告警。' }}</p>
-          <p class="tip" id="portscan-result-created">{{ portscan_state.latest_created_at_display }}</p>
-        </div>
-      </div>
-    </div>
-    <div class="criteria-box">
-      <strong>阈值说明</strong>
-      <div class="criteria-list">
-        <div class="criteria-item">{{ portscan_state.window_minutes }} 分钟内命中 {{ portscan_state.low_threshold }} 个唯一端口：触发告警</div>
-        <div class="criteria-item">{{ portscan_state.window_minutes }} 分钟内命中 {{ portscan_state.high_threshold }} 个唯一端口：升级并自动封禁</div>
-      </div>
-    </div>
-  </article>
-</section>
-
-<section>
-  <article class="card lab-card">
-    <div class="lab-header">
-      <div>
         <h3>异常探测实验</h3>
         <p>选择路径后提交，可在结果区和告警页查看状态。</p>
       </div>

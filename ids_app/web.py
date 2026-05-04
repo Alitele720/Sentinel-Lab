@@ -5,6 +5,7 @@ from flask import Flask, g, jsonify, render_template, request, session
 from .deploy import load_deploy_config
 from .detection import consume_pending_logs, start_watcher_once, write_access_log
 from .lab import build_request_record, get_request_port
+from .portscan_capture import start_portscan_capture_once
 from .routes_admin import register_admin_routes
 from .routes_public import register_public_routes
 from .runtime import runtime
@@ -62,6 +63,7 @@ def create_app(config_overrides=None, *, runtime_overrides=None):
 
     if app.config.get("START_WATCHER", True):
         start_watcher_once()
+    start_portscan_capture_once(app, runtime)
 
     @app.before_request
     def apply_request_guards():

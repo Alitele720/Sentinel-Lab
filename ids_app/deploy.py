@@ -64,4 +64,7 @@ def load_deploy_config():
         "ADMIN_USERNAME": os.environ.get("IDS_ADMIN_USERNAME", "admin"),
         "ADMIN_PASSWORD": os.environ.get("IDS_ADMIN_PASSWORD", "changeme"),
         "EXPOSE_LABS": parse_bool(os.environ.get("IDS_EXPOSE_LABS"), False),
+        "PORTSCAN_CAPTURE_ENABLED": parse_bool(os.environ.get("IDS_PORTSCAN_CAPTURE_ENABLED"), False),
+        "PORTSCAN_CAPTURE_INTERFACE": os.environ.get("IDS_PORTSCAN_CAPTURE_INTERFACE", ""),
+        "PORTSCAN_CAPTURE_FILTER": os.environ.get("IDS_PORTSCAN_CAPTURE_FILTER", "tcp"),
     }

@@ -18,7 +18,10 @@ class AppRuntime:
         self.bad_log_file = self.data_dir / "access.bad.log"
         self.log_offset = 0
         self.watcher_thread = None
+        self.portscan_capture_thread = None
+        self.portscan_capture_stop_event = threading.Event()
         self.watcher_lock = threading.Lock()
+        self.portscan_capture_lock = threading.Lock()
         self.log_ingest_lock = threading.Lock()
 
     def configure(self, *, base_dir=None, data_dir=None, db_file=None, log_file=None, bad_log_file=None):

@@ -11,18 +11,13 @@ from .lab import (
     build_bruteforce_payload,
     build_lab_feedback,
     build_login_attempt_records,
-    build_portscan_payload,
-    build_portscan_records,
     build_sql_payload,
     build_xss_payload,
     get_bruteforce_state,
-    get_portscan_state,
-    push_connection_events_to_pipeline,
     push_records_to_pipeline,
     reset_bruteforce_experiment,
     resolve_bruteforce_action,
     resolve_demo_ip,
-    validate_portscan_inputs,
     wants_json_response,
 )
 from .security import admin_required, clear_admin_auth, labs_access_allowed, mark_admin_authenticated
@@ -99,7 +94,6 @@ def register_admin_routes(app):
         bruteforce_feedback = context.pop("bruteforce_feedback", None)
         if bruteforce_feedback is None:
             bruteforce_feedback = session.pop("bruteforce_feedback", None)
-        portscan_target_ip = config_map.get("portscan_default_target_ip", "127.0.0.1")
         return render_template(
             "index.html",
             summary=summary,
@@ -107,8 +101,6 @@ def register_admin_routes(app):
             selected_demo_ip=selected_demo_ip,
             bruteforce_state=get_bruteforce_state(db, selected_demo_ip),
             bruteforce_feedback=bruteforce_feedback,
-            portscan_target_ip=portscan_target_ip,
-            portscan_state=get_portscan_state(db, selected_demo_ip, portscan_target_ip),
             scan_demo_urls=[
                 {"label": "/admin", "url": url_for("admin_probe", demo_ip=selected_demo_ip)},
                 {"label": "/phpmyadmin", "url": url_for("phpmyadmin_probe", demo_ip=selected_demo_ip)},
@@ -265,29 +257,6 @@ def register_admin_routes(app):
         state = get_bruteforce_state(get_db(), source_ip)
         payload = build_bruteforce_payload(state, ok=True, message=base_message, action=action, title="暴力破解实验已提交")
         return json_or_redirect(payload, focus_ip=source_ip)
-
-    @app.route("/lab/portscan", methods=["POST"])
-    def lab_portscan():
-        if not labs_access_allowed():
-            return render_template("blocked.html", source_ip=getattr(g, "effective_ip", request.remote_addr or "0.0.0.0")), 403
-        g.skip_request_logging = True
-        source_ip = request.form.get("demo_ip", "").strip()
-        protocol = "tcp"
-        config_map = get_config_map(get_db())
-        target_ip = config_map.get("portscan_default_target_ip", "127.0.0.1")
-        start_port, end_port, error_message = validate_portscan_inputs(source_ip, request.form.get("start_port", "").strip(), request.form.get("end_port", "").strip())
-        if error_message:
-            payload = build_portscan_payload(source_ip, target_ip, request.form.get("start_port", "").strip(), request.form.get("end_port", "").strip(), protocol=protocol, ok=False, message=error_message, title="端口扫描失败")
-            if wants_json_response():
-                return jsonify(payload), 400
-            return (render_admin_index(focus_ip=source_ip, portscan_result=payload, portscan_feedback=build_lab_feedback(payload["title"], payload["message"], "warning")), 400)
-        records = build_portscan_records(source_ip, target_ip, start_port, end_port, protocol=protocol)
-        push_connection_events_to_pipeline(records)
-        state = get_portscan_state(get_db(), source_ip, target_ip)
-        payload = build_portscan_payload(source_ip, target_ip, start_port, end_port, protocol=protocol, attempted_ports=len(records), unique_ports=state["unique_port_count"], blocked=state["blocked"], blocked_until=state["blocked_until"], summary=state["latest_summary"], ok=True, message="端口扫描已提交。", title="端口扫描已提交")
-        if wants_json_response():
-            return jsonify(payload)
-        return render_admin_index(focus_ip=source_ip, portscan_result=payload, portscan_feedback=build_lab_feedback(payload["title"], payload["message"], "success"))
 
     @app.route("/lab/bruteforce/reset", methods=["POST"])
     def reset_bruteforce():

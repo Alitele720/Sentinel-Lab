@@ -10,6 +10,7 @@ from ids_app import create_app
 from ids_app.deploy import load_dotenv_file
 from ids_app.detection import consume_pending_logs, normalize_payload, write_access_log
 from ids_app.lab import build_connection_event, build_lab_record, push_connection_events_to_pipeline
+from ids_app.portscan_capture import packet_to_connection_event
 from ids_app.runtime import BASE_DIR, runtime
 from ids_app.storage import (
     connect_db,
@@ -26,9 +27,36 @@ JSON_HEADERS = {
     "X-Requested-With": "XMLHttpRequest",
 }
 
-
 def to_mojibake(value):
     return value.encode("utf-8").decode("gb18030")
+
+
+def maybe_to_mojibake(value):
+    try:
+        return to_mojibake(value)
+    except UnicodeDecodeError:
+        return ""
+
+
+KNOWN_MOJIBAKE_SOURCE_TERMS = (
+    "数据库",
+    "请求",
+    "系统",
+    "登录",
+    "黑名单",
+    "告警",
+    "检测",
+    "封禁",
+    "配置",
+    "端口阻断",
+    "暴力破解",
+    "异常探测",
+    "端口扫描",
+    "管理员",
+)
+KNOWN_MOJIBAKE_FRAGMENTS = tuple(
+    fragment for term in KNOWN_MOJIBAKE_SOURCE_TERMS if (fragment := maybe_to_mojibake(term))
+)
 
 
 class AppTestCase(unittest.TestCase):
@@ -63,6 +91,9 @@ class AppTestCase(unittest.TestCase):
     def create_client(self, **config_overrides):
         app = create_app({**self.base_config, **config_overrides})
         return app.test_client()
+
+    def build_connection_events(self, source_ip, target_ip, start_port, end_port):
+        return [build_connection_event(source_ip, target_ip, port, source_kind="npcap") for port in range(start_port, end_port + 1)]
 
     def test_validate_config_form_rejects_invalid_values(self):
         updates, errors = validate_config_form(
@@ -213,8 +244,10 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(request_count, 1)
 
     def test_repair_legacy_text_encoding_fixes_old_garbled_rows(self):
-        broken_summary = to_mojibake("SQL 娉ㄥ叆鍛戒腑 2 鏉¤鍒欙紝璇勫垎 6")
-        broken_reason = to_mojibake("绠＄悊鍛樻墜鍔ㄥ皝绂")
+        clean_summary = "SQL 注入命中 2 条规则，评分 6"
+        clean_reason = "请求日志入库完成"
+        broken_summary = to_mojibake(clean_summary)
+        broken_reason = to_mojibake(clean_reason)
 
         db = self.get_db()
         try:
@@ -263,8 +296,21 @@ class AppTestCase(unittest.TestCase):
             db.close()
 
         self.assertEqual(repaired_rows, 2)
-        self.assertEqual(repaired_summary, "SQL 娉ㄥ叆鍛戒腑 2 鏉¤鍒欙紝璇勫垎 6")
-        self.assertEqual(repaired_reason, "绠＄悊鍛樻墜鍔ㄥ皝绂")
+        self.assertEqual(repaired_summary, clean_summary)
+        self.assertEqual(repaired_reason, clean_reason)
+
+    def test_source_files_do_not_keep_known_mojibake_literals(self):
+        search_roots = ("ids_app", "templates", "static")
+        offenders = []
+        for root in search_roots:
+            for path in Path(BASE_DIR, root).rglob("*"):
+                if path.suffix not in {".py", ".html", ".js", ".css"}:
+                    continue
+                text = path.read_text(encoding="utf-8")
+                for fragment in KNOWN_MOJIBAKE_FRAGMENTS:
+                    if fragment in text:
+                        offenders.append(f"{path.relative_to(BASE_DIR)}: {fragment}")
+        self.assertEqual(offenders, [])
 
     def test_public_routes_smoke(self):
         for path in ["/", "/portal", "/search", "/contact", "/health"]:
@@ -481,8 +527,8 @@ class AppTestCase(unittest.TestCase):
     def test_production_lab_routes_are_not_public(self):
         locked_client = self.create_client(ADMIN_AUTH_ENABLED=False, EXPOSE_LABS=False)
         response = locked_client.post(
-            "/lab/portscan",
-            data={"demo_ip": "10.10.10.66", "start_port": "20", "end_port": "24"},
+            "/lab/bruteforce",
+            data={"demo_ip": "10.10.10.66", "action": "fail_once"},
             headers=JSON_HEADERS,
             environ_overrides={"REMOTE_ADDR": "10.10.10.201"},
         )
@@ -667,23 +713,63 @@ class AppTestCase(unittest.TestCase):
             db.close()
         self.assertEqual(total, 1)
 
-    def test_portscan_route_rejects_invalid_range(self):
+    def test_connection_event_api_and_portscan_lab_are_removed(self):
+        response = self.client.post(
+            "/api/connection-events",
+            json={"source_ip": "10.10.10.90", "target_ip": "192.168.1.10", "target_port": 22},
+            headers={"Accept": "application/json"},
+        )
+        self.assertEqual(response.status_code, 404)
+
         response = self.client.post(
             "/lab/portscan",
-            data={"demo_ip": "10.10.10.66", "start_port": "200", "end_port": "100"},
+            data={"demo_ip": "10.10.10.90", "start_port": "20", "end_port": "24"},
             headers=JSON_HEADERS,
         )
-        self.assertEqual(response.status_code, 400)
-        data = response.get_json()
-        self.assertFalse(data["ok"])
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_home_no_longer_shows_portscan_simulator(self):
+        response = self.client.get("/ops")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertNotIn("portscan-form", body)
+        self.assertNotIn("提交端口扫描", body)
+
+    def test_portscan_capture_parses_inbound_tcp_syn(self):
+        try:
+            from scapy.layers.inet import IP, TCP
+        except ImportError:
+            self.skipTest("scapy is not installed")
+
+        packet = IP(src="10.10.10.90", dst="192.168.1.10") / TCP(dport=22, flags="S")
+        event = packet_to_connection_event(packet, local_ips={"192.168.1.10"})
+
+        self.assertIsNotNone(event)
+        self.assertEqual(event["source_ip"], "10.10.10.90")
+        self.assertEqual(event["target_ip"], "192.168.1.10")
+        self.assertEqual(event["target_port"], 22)
+        self.assertEqual(event["protocol"], "tcp")
+        self.assertEqual(event["source_kind"], "npcap")
+
+    def test_portscan_capture_ignores_non_probe_packets(self):
+        try:
+            from scapy.layers.inet import IP, TCP, UDP
+        except ImportError:
+            self.skipTest("scapy is not installed")
+
+        local_ips = {"192.168.1.10"}
+        ack_packet = IP(src="10.10.10.90", dst="192.168.1.10") / TCP(dport=22, flags="SA")
+        outbound_packet = IP(src="192.168.1.10", dst="10.10.10.90") / TCP(dport=22, flags="S")
+        other_target_packet = IP(src="10.10.10.90", dst="192.168.1.11") / TCP(dport=22, flags="S")
+        udp_packet = IP(src="10.10.10.90", dst="192.168.1.10") / UDP(dport=53)
+
+        self.assertIsNone(packet_to_connection_event(ack_packet, local_ips=local_ips))
+        self.assertIsNone(packet_to_connection_event(outbound_packet, local_ips=local_ips))
+        self.assertIsNone(packet_to_connection_event(other_target_packet, local_ips=local_ips))
+        self.assertIsNone(packet_to_connection_event(udp_packet, local_ips=local_ips))
 
     def test_portscan_below_threshold_creates_no_alert(self):
-        response = self.client.post(
-            "/lab/portscan",
-            data={"demo_ip": "10.10.10.70", "start_port": "20", "end_port": "24"},
-            headers=JSON_HEADERS,
-        )
-        self.assertEqual(response.status_code, 200)
+        push_connection_events_to_pipeline(self.build_connection_events("10.10.10.70", "192.168.1.10", 20, 24))
 
         db = self.get_db()
         try:
@@ -696,16 +782,7 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(total, 0)
 
     def test_portscan_alert_counts_unique_ports_per_target(self):
-        response = self.client.post(
-            "/lab/portscan",
-            data={"demo_ip": "10.10.10.71", "start_port": "30", "end_port": "39"},
-            headers=JSON_HEADERS,
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.get_json()
-        self.assertEqual(data["unique_ports"], 10)
-        self.assertFalse(data["blocked"])
-        self.assertEqual(data["target_ip"], "127.0.0.1")
+        push_connection_events_to_pipeline(self.build_connection_events("10.10.10.71", "192.168.1.10", 30, 39))
 
         db = self.get_db()
         try:
@@ -725,7 +802,7 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(row["severity"], "medium")
         self.assertEqual(row["score"], 10)
         self.assertEqual(row["threshold_value"], 10)
-        self.assertEqual(row["request_path"], "tcp://127.0.0.1")
+        self.assertEqual(row["request_path"], "tcp://192.168.1.10")
 
     def test_portscan_deduplicates_repeated_ports(self):
         records = [build_connection_event("10.10.10.72", "192.168.1.10", 80) for _ in range(12)]
@@ -759,14 +836,7 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(total, 0)
 
     def test_portscan_high_threshold_auto_blocks_source(self):
-        response = self.client.post(
-            "/lab/portscan",
-            data={"demo_ip": "10.10.10.74", "start_port": "40", "end_port": "59"},
-            headers=JSON_HEADERS,
-        )
-        self.assertEqual(response.status_code, 200)
-        data = response.get_json()
-        self.assertTrue(data["blocked"])
+        push_connection_events_to_pipeline(self.build_connection_events("10.10.10.74", "192.168.1.10", 40, 59))
 
         db = self.get_db()
         try:
@@ -781,6 +851,10 @@ class AppTestCase(unittest.TestCase):
                 ("10.10.10.74",),
             ).fetchone()
             blacklist = db.execute("SELECT active FROM blacklist WHERE source_ip = ?", ("10.10.10.74",)).fetchone()
+            port_block = db.execute(
+                "SELECT active FROM port_blocks WHERE source_ip = ? AND trigger_attack_type = 'port_scan'",
+                ("10.10.10.74",),
+            ).fetchone()
         finally:
             db.close()
         self.assertIsNotNone(alert)
@@ -788,14 +862,11 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(alert["auto_blocked"], 1)
         self.assertIsNotNone(blacklist)
         self.assertEqual(blacklist["active"], 1)
+        self.assertIsNotNone(port_block)
+        self.assertEqual(port_block["active"], 1)
 
     def test_portscan_route_contributes_to_connection_traffic_curve(self):
-        response = self.client.post(
-            "/lab/portscan",
-            data={"demo_ip": "10.10.10.75", "start_port": "50", "end_port": "54"},
-            headers=JSON_HEADERS,
-        )
-        self.assertEqual(response.status_code, 200)
+        push_connection_events_to_pipeline(self.build_connection_events("10.10.10.75", "192.168.1.10", 50, 54))
 
         stats_response = self.client.get("/api/stats")
         self.assertEqual(stats_response.status_code, 200)

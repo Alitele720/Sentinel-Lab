@@ -13,21 +13,6 @@
   const sqlResultBox = document.getElementById("sql-result-box");
   const sqlQueryDisplay = document.getElementById("sql-query-display");
 
-  const portscanForm = document.getElementById("portscan-form");
-  const portscanSubmitButton = document.getElementById("portscan-submit-button");
-  const portscanFeedback = document.getElementById("portscan-feedback");
-  const portscanFeedbackTitle = document.getElementById("portscan-feedback-title");
-  const portscanFeedbackMessage = document.getElementById("portscan-feedback-message");
-  const portscanResultBox = document.getElementById("portscan-result-box");
-  const portscanResultTarget = document.getElementById("portscan-result-target");
-  const portscanResultRange = document.getElementById("portscan-result-range");
-  const portscanResultUnique = document.getElementById("portscan-result-unique");
-  const portscanResultBlocked = document.getElementById("portscan-result-blocked");
-  const portscanBlockedRow = document.getElementById("portscan-blocked-row");
-  const portscanResultBlockedUntil = document.getElementById("portscan-result-blocked-until");
-  const portscanResultSummary = document.getElementById("portscan-result-summary");
-  const portscanResultCreated = document.getElementById("portscan-result-created");
-
   const xssSubmitButton = document.getElementById("xss-submit-button");
   const xssFeedback = document.getElementById("xss-feedback");
   const xssFeedbackTitle = document.getElementById("xss-feedback-title");
@@ -230,23 +215,6 @@
     sqlQueryDisplay.textContent = data.query || "";
   }
 
-  function renderPortscanResult(data) {
-    portscanResultBox.classList.remove("is-hidden");
-    portscanResultTarget.textContent = data.target_ip || "-";
-    portscanResultRange.textContent = `${data.start_port || "-"} - ${data.end_port || "-"}`;
-    portscanResultUnique.textContent = String(data.unique_ports || 0);
-    portscanResultBlocked.textContent = data.blocked ? "已封禁" : "未封禁";
-    portscanResultSummary.textContent = data.summary || "当前还没有端口扫描告警。";
-    portscanResultCreated.textContent = "";
-    if (data.blocked_until_display) {
-      portscanBlockedRow.classList.remove("is-hidden");
-      portscanResultBlockedUntil.textContent = data.blocked_until_display;
-    } else {
-      portscanBlockedRow.classList.add("is-hidden");
-      portscanResultBlockedUntil.textContent = "";
-    }
-  }
-
   function renderXssResult(data) {
     const hasContent = Boolean(data.message_text);
     xssSafeBox.classList.toggle("is-hidden", !hasContent);
@@ -280,36 +248,6 @@
       setPanelFeedback(sqlFeedback, sqlFeedbackTitle, sqlFeedbackMessage, error.message, "warning", "SQL 测试失败");
     } finally {
       setButtonsDisabled([sqlSubmitButton], false);
-    }
-  }
-
-  async function submitPortscanForm() {
-    setButtonsDisabled([portscanSubmitButton], true);
-    try {
-      const data = await requestJson(portscanForm.action, {
-        method: "POST",
-        body: new FormData(portscanForm),
-      });
-      renderPortscanResult(data);
-      setPanelFeedback(
-        portscanFeedback,
-        portscanFeedbackTitle,
-        portscanFeedbackMessage,
-        data.message || "端口扫描已提交。",
-        data.blocked ? "danger" : "success",
-        data.title || "端口扫描已提交"
-      );
-    } catch (error) {
-      setPanelFeedback(
-        portscanFeedback,
-        portscanFeedbackTitle,
-        portscanFeedbackMessage,
-        error.message,
-        "warning",
-        "端口扫描失败"
-      );
-    } finally {
-      setButtonsDisabled([portscanSubmitButton], false);
     }
   }
 
@@ -478,11 +416,6 @@
     await submitXssForm();
   });
 
-  portscanForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await submitPortscanForm();
-  });
-
   manualForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await submitSimpleForm(manualForm, "手动登录失败");
@@ -509,9 +442,6 @@
   }
   if (!xssFeedbackMessage.textContent.trim()) {
     clearPanelFeedback(xssFeedback, xssFeedbackTitle, xssFeedbackMessage);
-  }
-  if (!portscanFeedbackMessage.textContent.trim()) {
-    clearPanelFeedback(portscanFeedback, portscanFeedbackTitle, portscanFeedbackMessage);
   }
   clearPanelFeedback(scanFeedback, scanFeedbackTitle, scanFeedbackMessage);
   if (!feedbackMessage.textContent.trim()) {

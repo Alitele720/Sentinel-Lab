@@ -20,20 +20,34 @@ from .constants import (
 from .runtime import runtime
 
 
-MOJIBAKE_FRAGMENTS = (
-    "鏃ュ",
-    "鍙ｅ",
-    "璇锋",
-    "绯荤",
-    "鐧诲",
-    "榛戝",
-    "鍛婅",
-    "妫€",
-    "灏佺",
-    "缁熻",
-    "閰嶇",
-    "閲嶇",
-    "闃绘",
+MOJIBAKE_SOURCE_TERMS = (
+    "数据库",
+    "请求",
+    "系统",
+    "登录",
+    "黑名单",
+    "告警",
+    "检测",
+    "封禁",
+    "配置",
+    "端口阻断",
+    "暴力破解",
+    "异常探测",
+    "端口扫描",
+    "管理员",
+)
+
+
+def make_mojibake_fragment(value):
+    """Generate legacy mojibake markers without keeping garbled literals in source."""
+    try:
+        return value.encode("utf-8").decode("gb18030")
+    except UnicodeDecodeError:
+        return ""
+
+
+MOJIBAKE_FRAGMENTS = tuple(
+    fragment for term in MOJIBAKE_SOURCE_TERMS if (fragment := make_mojibake_fragment(term))
 )
 
 
@@ -213,6 +227,7 @@ def seed_defaults():
     """补齐默认配置和初始规则，同时修复内置描述文本。"""
     conn = connect_db()
     try:
+        conn.execute("DELETE FROM system_config WHERE key = 'portscan_default_target_ip'")
         for key, (value, description) in DEFAULT_CONFIG.items():
             conn.execute(
                 """

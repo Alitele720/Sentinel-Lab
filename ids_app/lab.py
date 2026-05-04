@@ -158,8 +158,8 @@ def push_records_to_pipeline(records):
     process_logs_now()
 
 
-def build_connection_event(source_ip, target_ip, target_port, *, protocol="tcp", result="attempted", source_kind="lab_portscan"):
-    """为端口扫描实验构造结构化连接事件。"""
+def build_connection_event(source_ip, target_ip, target_port, *, protocol="tcp", result="attempted", source_kind="test_capture"):
+    """为测试构造结构化连接事件。"""
     return {
         "event_id": str(uuid.uuid4()),
         "timestamp": to_iso(utc_now()),
@@ -439,128 +439,6 @@ def build_xss_payload(source_ip, message_text, *, ok=True, message="", title="XS
         "safe_echo": message_text,
         "dangerous_preview_html": message_text,
     }
-
-
-def build_portscan_payload(
-    source_ip,
-    target_ip,
-    start_port,
-    end_port,
-    *,
-    protocol="tcp",
-    attempted_ports=0,
-    unique_ports=0,
-    blocked=False,
-    blocked_until="",
-    summary="",
-    ok=True,
-    message="",
-    title="端口扫描结果",
-):
-    return {
-        "ok": ok,
-        "title": title,
-        "message": message,
-        "demo_ip": source_ip,
-        "target_ip": target_ip,
-        "protocol": protocol,
-        "start_port": start_port,
-        "end_port": end_port,
-        "attempted_ports": attempted_ports,
-        "unique_ports": unique_ports,
-        "blocked": blocked,
-        "blocked_until": blocked_until,
-        "blocked_until_display": format_display_time(blocked_until),
-        "summary": summary,
-    }
-
-
-def get_portscan_state(db, source_ip, target_ip):
-    """返回首页端口扫描实验需要的状态摘要。"""
-    config_map = get_config_map(db)
-    state = {
-        "source_ip": source_ip,
-        "target_ip": target_ip,
-        "window_minutes": get_int_config(db, "portscan_window_minutes", config_map=config_map),
-        "low_threshold": get_int_config(db, "portscan_low_threshold", config_map=config_map),
-        "high_threshold": get_int_config(db, "portscan_high_threshold", config_map=config_map),
-        "unique_port_count": 0,
-        "blocked": False,
-        "blocked_until": "",
-        "blocked_until_display": "",
-        "latest_summary": "",
-        "latest_created_at": "",
-        "latest_created_at_display": "",
-    }
-    if not source_ip or not target_ip or not is_valid_ip(source_ip) or not is_valid_ip(target_ip):
-        return state
-
-    since = to_iso(utc_now() - timedelta(minutes=state["window_minutes"]))
-    row = db.execute(
-        """
-        SELECT COUNT(DISTINCT target_port) AS total
-        FROM connection_events
-        WHERE source_ip = ?
-          AND target_ip = ?
-          AND protocol = 'tcp'
-          AND timestamp >= ?
-        """,
-        (source_ip, target_ip, since),
-    ).fetchone()
-    state["unique_port_count"] = row["total"] if row else 0
-
-    security_state = get_enforcement_state(
-        db,
-        source_ip,
-        get_int_config(db, "port_block_target_port", config_map=config_map),
-        config_map=config_map,
-    )
-    blacklist_entry = security_state["blacklist"]
-    if blacklist_entry:
-        state["blocked"] = True
-        state["blocked_until"] = blacklist_entry["expires_at"] or ""
-        state["blocked_until_display"] = format_display_time(blacklist_entry["expires_at"])
-
-    latest_event = db.execute(
-        """
-        SELECT *
-        FROM attack_events
-        WHERE source_ip = ?
-          AND attack_type = 'port_scan'
-          AND request_path = ?
-        ORDER BY id DESC
-        LIMIT 1
-        """,
-        (source_ip, f"tcp://{target_ip}"),
-    ).fetchone()
-    if latest_event:
-        state["latest_summary"] = latest_event["summary"]
-        state["latest_created_at"] = latest_event["created_at"]
-        state["latest_created_at_display"] = format_display_time(latest_event["created_at"])
-    return state
-
-
-def build_portscan_records(source_ip, target_ip, start_port, end_port, *, protocol="tcp"):
-    """按端口范围批量生成连接事件。"""
-    return [build_connection_event(source_ip, target_ip, port, protocol=protocol) for port in range(start_port, end_port + 1)]
-
-
-def validate_portscan_inputs(source_ip, start_port, end_port):
-    """校验端口扫描实验输入，并返回规范化后的端口范围。"""
-    if not is_valid_ip(source_ip):
-        return None, None, "请输入合法的 demo_ip，例如 10.10.10.99。"
-    if not is_valid_port(start_port):
-        return None, None, "起始端口必须在 1 到 65535 之间。"
-    if not is_valid_port(end_port):
-        return None, None, "结束端口必须在 1 到 65535 之间。"
-
-    start = int(start_port)
-    end = int(end_port)
-    if start > end:
-        return None, None, "起始端口不能大于结束端口。"
-    if end - start > 127:
-        return None, None, "一次最多模拟 128 个端口。"
-    return start, end, None
 
 
 def resolve_demo_ip(db, preferred_ip=""):

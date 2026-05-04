@@ -19,7 +19,7 @@ python -m unittest tests.test_app
 - XSS 检测
 - 暴力破解检测
 - 敏感路径扫描检测
-- 端口扫描事件检测
+- 真实端口扫描抓包事件检测
 - 黑名单和端口阻断逻辑
 - 统计接口返回结构
 
@@ -160,17 +160,23 @@ password = wrong
 
 ## 端口扫描测试
 
-在后台实验入口提交端口扫描参数，示例：
+端口扫描检测依赖 Npcap 和抓包权限。先安装 Npcap，然后用管理员权限启动 PowerShell，并在 `.env` 中开启：
 
-```text
-demo_ip = 10.10.10.99
-start_port = 20
-end_port = 39
+```env
+IDS_PORTSCAN_CAPTURE_ENABLED=true
+IDS_PORTSCAN_CAPTURE_INTERFACE=
+IDS_PORTSCAN_CAPTURE_FILTER=tcp
+```
+
+启动服务后，从另一台局域网主机执行端口扫描，例如：
+
+```powershell
+nmap 你的服务器局域网IP
 ```
 
 预期结果：
 
-- 系统生成连接事件
+- 系统从 TCP SYN 包生成连接事件
 - 达到阈值后出现 `port_scan` 告警
 - 高危扫描可自动加入黑名单
 - `/dashboard` 的连接事件统计增加
