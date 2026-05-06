@@ -18,14 +18,6 @@ app = create_app()
 
 def get_lan_addresses():
     addresses = set()
-    try:
-        hostname = socket.gethostname()
-        for item in socket.getaddrinfo(hostname, None, socket.AF_INET):
-            ip_value = item[4][0]
-            if not ip_value.startswith("127."):
-                addresses.add(ip_value)
-    except socket.gaierror:
-        pass
 
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
