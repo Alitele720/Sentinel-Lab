@@ -93,8 +93,15 @@ def ensure_data_dir():
 
 def connect_db():
     """创建 SQLite 连接，并启用字典式行访问。"""
-    conn = sqlite3.connect(runtime.db_file)
+    # 抓包线程、日志 watcher 和 Flask 请求线程会同时写库，
+    # 默认的 rollback journal 会让读写互相阻塞、触发 "database is locked"。
+    # 这里显式指定 timeout 并切到 WAL 模式，让读写可以并发推进。
+    conn = sqlite3.connect(runtime.db_file, timeout=30, isolation_level="DEFERRED")
     conn.row_factory = sqlite3.Row
+    # WAL 是数据库级设置，重复设置无副作用；同时放宽 synchronous 与 busy_timeout。
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 
