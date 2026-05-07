@@ -9,9 +9,37 @@ from .detection import ingest_connection_event
 from .storage import connect_db, to_iso, utc_now
 
 
+def _iter_windows_interface_ipv4():
+    """在 Windows 上遍历所有网卡，产出 (网卡名, IPv4 列表)。其它平台返回空。"""
+    try:
+        from scapy.arch.windows import get_windows_if_list
+    except ImportError:
+        return
+
+    for entry in get_windows_if_list():
+        name = entry.get("name") or entry.get("description")
+        if not name:
+            continue
+        ipv4_addresses = []
+        for addr in entry.get("ips", []) or []:
+            if ":" in addr:
+                continue
+            if addr.startswith("169.254."):
+                # 链路本地自动配置地址，没有真实路由意义。
+                continue
+            ipv4_addresses.append(addr)
+        if ipv4_addresses:
+            yield name, ipv4_addresses
+
+
 def get_local_ip_addresses():
     """读取本机常见 IPv4 地址，用于过滤真正打到本机的连接。"""
     addresses = {"127.0.0.1"}
+
+    # 优先通过 scapy 枚举所有网卡，避免漏掉非默认路由的接口（VMware/VPN 等）。
+    for _name, ipv4_addresses in _iter_windows_interface_ipv4():
+        addresses.update(ipv4_addresses)
+
     try:
         hostname = socket.gethostname()
         for item in socket.getaddrinfo(hostname, None, socket.AF_INET):
@@ -26,6 +54,11 @@ def get_local_ip_addresses():
     except OSError:
         pass
     return addresses
+
+
+def get_capture_interfaces():
+    """在 Windows 上枚举所有带真实 IPv4 的网卡名称，供 sniff() 同时监听。"""
+    return [name for name, _addresses in _iter_windows_interface_ipv4()]
 
 
 def packet_to_connection_event(packet, *, local_ips=None, now=None):
@@ -75,10 +108,24 @@ class PortscanCaptureThread(threading.Thread):
 
     def __init__(self, *, interface="", capture_filter="tcp", stop_event=None):
         super().__init__(daemon=True)
-        self.interface = interface or None
+        # 允许通过逗号分隔同时指定多张网卡。
+        if interface:
+            self.interfaces = [item.strip() for item in interface.split(",") if item.strip()]
+        else:
+            self.interfaces = []
         self.capture_filter = capture_filter or "tcp"
         self.stop_event = stop_event or threading.Event()
         self.local_ips = get_local_ip_addresses()
+
+    def _resolve_sniff_iface(self):
+        """决定 scapy.sniff 的 iface 入参；多网卡 Windows 上要主动列全。"""
+        if self.interfaces:
+            return self.interfaces[0] if len(self.interfaces) == 1 else list(self.interfaces)
+        candidates = get_capture_interfaces()
+        if not candidates:
+            # Linux 等平台让 scapy 自行决定（通常是 any）。
+            return None
+        return candidates[0] if len(candidates) == 1 else candidates
 
     def run(self):
         try:
@@ -87,7 +134,17 @@ class PortscanCaptureThread(threading.Thread):
             print("[端口扫描抓包] 未安装 scapy，真实端口扫描检测未启动。")
             return
 
-        print(f"[端口扫描抓包] 已启动，监听本机地址：{', '.join(sorted(self.local_ips))}")
+        iface_arg = self._resolve_sniff_iface()
+        if iface_arg is None:
+            iface_label = "默认"
+        elif isinstance(iface_arg, str):
+            iface_label = iface_arg
+        else:
+            iface_label = ", ".join(iface_arg)
+        print(
+            f"[端口扫描抓包] 已启动，监听本机地址：{', '.join(sorted(self.local_ips))}；"
+            f"网卡：{iface_label}"
+        )
 
         def handle_packet(packet):
             event = packet_to_connection_event(packet, local_ips=self.local_ips)
@@ -105,7 +162,7 @@ class PortscanCaptureThread(threading.Thread):
 
         try:
             sniff(
-                iface=self.interface,
+                iface=iface_arg,
                 filter=self.capture_filter,
                 prn=handle_packet,
                 store=False,
