@@ -16,11 +16,13 @@ python -m unittest tests.test_app
 - SQL 注入、XSS、暴力破解和敏感路径扫描检测。
 - 黑名单、端口阻断和白名单绕过逻辑。
 - 后台 IP 白名单、登录认证和会话保持。
+- `/logs` 运行日志页、正常日志尾部显示和异常日志尾部显示。
 - `.env` 加载、环境变量覆盖和可信代理 IP 解析。
 - 配置表单和规则表单校验。
 - 告警、连接事件和统计接口结构。
 - 真实端口扫描抓包解析逻辑。
 - `/lab/portscan` 和 `/api/connection-events` 已移除这一行为。
+- 坏日志隔离、旧中文乱码修复和实验记录清空。
 - 源码中已知中文乱码片段的回归检查。
 
 ## 手工测试准备
@@ -160,6 +162,26 @@ password = wrong
 - `/alerts` 出现 `scan_probe` 告警。
 - `/dashboard` 中请求和告警统计增加。
 
+## 运行日志页面测试
+
+访问：
+
+```text
+/logs?lines=20
+```
+
+如需查看异常日志，访问：
+
+```text
+/logs?file=bad&lines=20
+```
+
+预期结果：
+
+- 访问日志页显示最近的 `data/access.log` 内容。
+- 异常日志页显示 `data/access.bad.log` 内容；没有坏日志时应显示空状态。
+- 非管理员或非白名单 IP 不能绕过后台访问控制查看日志。
+
 ## 端口扫描抓包测试
 
 当前端口扫描检测来自真实 TCP SYN 抓包，不再通过 `/lab/portscan` 或 `/api/connection-events` 手动提交。
@@ -198,6 +220,7 @@ nmap 服务器局域网IP
 /ops
 /dashboard
 /alerts
+/logs
 /rules
 /config
 /blacklist
@@ -261,5 +284,7 @@ IDS_TRUSTED_PROXY_IPS=你的代理IP
 - 高危行为可以触发黑名单或端口阻断。
 - 被封禁来源再次访问会被拦截。
 - 真实端口扫描抓包可以生成连接事件和端口扫描告警。
+- `/logs` 可以显示访问日志和异常日志。
+- 清空实验记录后，请求、告警、连接事件、黑名单、端口阻断和日志内容被清理，规则与系统配置保留。
 - `/api/stats` 返回仪表盘数据。
 - `python -m unittest tests.test_app` 全部通过。

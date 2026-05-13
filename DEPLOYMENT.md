@@ -106,6 +106,7 @@ wsgi:app
 /ops
 /dashboard
 /alerts
+/logs
 /rules
 /config
 /blacklist
@@ -120,11 +121,13 @@ wsgi:app
 
 ## 实验接口开关
 
-实验接口用于教学演示 SQL、XSS 和暴力破解流程。默认不建议暴露给不可信用户：
+实验接口用于教学演示 SQL、XSS、暴力破解和异常探测流程。默认不建议暴露给不可信用户：
 
 ```env
 IDS_EXPOSE_LABS=false
 ```
+
+当 `IDS_EXPOSE_LABS=false` 时，实验路由只允许已授权管理员访问；开启后，非管理员也可以访问这些实验路由。公开演示前应确认环境是受控的。
 
 课堂演示、本机实验或受控局域网环境可以临时开启：
 
@@ -184,6 +187,8 @@ data/ids.db
 data/access.log
 data/access.bad.log
 ```
+
+其中 `data/ids.db` 保存请求、告警、规则、配置、黑名单、端口阻断和连接事件；`data/access.log` 保存正常结构化访问日志；`data/access.bad.log` 保存无法解析或结构不合法的日志行，便于在 `/logs` 页面排查。
 
 这些文件包含本地运行数据，不应提交到 GitHub。当前 `.gitignore` 已忽略 `data/`、`*.db` 和 `*.log`。
 
