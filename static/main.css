@@ -670,6 +670,32 @@ th {
   grid-column: 1 / -1;
 }
 
+.log-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 220px) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.log-toolbar input,
+.log-toolbar select {
+  margin-bottom: 0;
+}
+
+.log-toolbar button {
+  width: auto;
+  min-width: 110px;
+}
+
+.log-viewer {
+  max-height: 620px;
+  margin-top: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .action-stack {
   display: grid;
   gap: 8px;
@@ -697,6 +723,10 @@ code {
   }
 
   .input-button-row {
+    grid-template-columns: 1fr;
+  }
+
+  .log-toolbar {
     grid-template-columns: 1fr;
   }
 

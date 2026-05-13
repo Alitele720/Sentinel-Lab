@@ -48,6 +48,17 @@ from .storage import (
 )
 
 
+def tail_text_file(path, *, max_lines=200):
+    """Return the last max_lines from a UTF-8 text file."""
+    if max_lines < 1:
+        max_lines = 1
+    if not path.exists():
+        return []
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        lines = handle.readlines()
+    return [line.rstrip("\n") for line in lines[-max_lines:]]
+
+
 def register_admin_routes(app):
     app.jinja_env.globals["attack_type_label"] = attack_type_label
     app.jinja_env.globals["severity_badge"] = severity_badge
@@ -427,6 +438,26 @@ def register_admin_routes(app):
     def alerts():
         rows = get_db().execute("SELECT * FROM attack_events ORDER BY created_at DESC LIMIT 200").fetchall()
         return render_template("alerts.html", rows=rows)
+
+    @app.route("/logs")
+    @admin_required
+    def logs():
+        selected_log = request.args.get("file", "access")
+        if selected_log not in {"access", "bad"}:
+            selected_log = "access"
+        try:
+            max_lines = int(request.args.get("lines", "200"))
+        except ValueError:
+            max_lines = 200
+        max_lines = min(max(max_lines, 20), 1000)
+        log_path = runtime.bad_log_file if selected_log == "bad" else runtime.log_file
+        return render_template(
+            "logs.html",
+            selected_log=selected_log,
+            max_lines=max_lines,
+            log_path=log_path,
+            log_lines=tail_text_file(log_path, max_lines=max_lines),
+        )
 
     @app.route("/export/alerts.csv")
     @admin_required

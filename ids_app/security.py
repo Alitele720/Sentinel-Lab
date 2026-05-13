@@ -12,6 +12,7 @@ ADMIN_ENDPOINTS = {
     "api_stats",
     "alerts",
     "export_alerts",
+    "logs",
     "rules",
     "config",
     "blacklist",

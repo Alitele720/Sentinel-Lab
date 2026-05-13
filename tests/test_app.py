@@ -425,7 +425,7 @@ class AppTestCase(unittest.TestCase):
 
     def test_non_admin_ip_cannot_access_management_routes(self):
         locked_client = self.create_client(ADMIN_AUTH_ENABLED=False, EXPOSE_LABS=False)
-        for path in ["/dashboard", "/alerts", "/rules", "/config", "/blacklist"]:
+        for path in ["/dashboard", "/alerts", "/logs", "/rules", "/config", "/blacklist"]:
             response = locked_client.get(path, environ_overrides={"REMOTE_ADDR": "10.10.10.200"})
             self.assertEqual(response.status_code, 403, path)
 
@@ -467,7 +467,7 @@ class AppTestCase(unittest.TestCase):
         )
         self.assertEqual(login_response.status_code, 302)
 
-        for path in ["/ops", "/dashboard", "/alerts", "/rules", "/config", "/blacklist", "/ops"]:
+        for path in ["/ops", "/dashboard", "/alerts", "/logs", "/rules", "/config", "/blacklist", "/ops"]:
             response = guarded_client.get(path, environ_overrides={"REMOTE_ADDR": "127.0.0.1"}, follow_redirects=False)
             self.assertEqual(response.status_code, 200, path)
 
@@ -627,7 +627,7 @@ class AppTestCase(unittest.TestCase):
         self.assertEqual(row["total"], 0)
 
     def test_pages_and_stats_api_smoke(self):
-        for path in ["/ops", "/dashboard", "/alerts", "/rules", "/config", "/blacklist"]:
+        for path in ["/ops", "/dashboard", "/alerts", "/logs", "/rules", "/config", "/blacklist"]:
             response = self.client.get(path)
             self.assertEqual(response.status_code, 200, path)
 
@@ -651,6 +651,25 @@ class AppTestCase(unittest.TestCase):
         )
         self.assertEqual(len(data["trafficByHour"]), 24)
         self.assertEqual(len(data["trafficRealtime"]), 60)
+
+    def test_admin_logs_page_shows_runtime_log_tail(self):
+        write_access_log(build_lab_record("10.10.10.99", "/search", query_params={"q": ["log-viewer"]}))
+
+        response = self.client.get("/logs?lines=20")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("运行日志", body)
+        self.assertIn("10.10.10.99", body)
+        self.assertIn("log-viewer", body)
+
+    def test_admin_logs_page_shows_bad_log_tail(self):
+        runtime.bad_log_file.write_text("bad-line-for-viewer\n", encoding="utf-8")
+
+        response = self.client.get("/logs?file=bad&lines=20")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("bad-line-for-viewer", response.get_data(as_text=True))
 
     def test_stats_api_returns_zero_filled_traffic_buckets_when_empty(self):
         response = self.client.get("/api/stats")

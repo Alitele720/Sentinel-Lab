@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card section-head">
+  <div>
+    <h2>运行日志</h2>
+    <p>查看最近写入的访问日志和异常日志。</p>
+  </div>
+  <a class="button-link" href="{{ url_for('dashboard') }}">返回仪表盘</a>
+</section>
+
+<section class="card">
+  <form method="get" class="log-toolbar">
+    <label>
+      <span>日志文件</span>
+      <select name="file">
+        <option value="access" {% if selected_log == "access" %}selected{% endif %}>访问日志 access.log</option>
+        <option value="bad" {% if selected_log == "bad" %}selected{% endif %}>异常日志 access.bad.log</option>
+      </select>
+    </label>
+    <label>
+      <span>显示行数</span>
+      <input name="lines" type="number" min="20" max="1000" step="20" value="{{ max_lines }}">
+    </label>
+    <button type="submit">刷新</button>
+  </form>
+  <p class="tip">当前文件：<code>{{ log_path }}</code></p>
+</section>
+
+<section class="card">
+  {% if log_lines %}
+  <pre class="log-viewer">{% for line in log_lines %}{{ line }}
+{% endfor %}</pre>
+  {% else %}
+  <div class="notice-box">
+    <strong>暂无日志内容</strong>
+    <p>系统运行并产生访问记录后，这里会显示最近的日志行。</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
