@@ -2,6 +2,8 @@
 
 本项目是南京邮电大学网络安全课程设计内容，用于课程实践、课堂演示和授权实验环境。
 
+仓库地址：[https://github.com/Alitele720/Sentinel-Lab](https://github.com/Alitele720/Sentinel-Lab)
+
 Sentinel Lab 是一个基于 `Flask + SQLite` 的 Web IDS 与蜜罐演示平台。当前代码采用 `ids_app` 应用工厂结构，`app.py` 用于本地/局域网启动，`wsgi.py` 用于 WSGI 部署。
 
 项目把公开蜜罐页面、请求日志、规则检测、告警生成、自动封禁、端口阻断和后台展示放在同一个教学应用中，方便演示一条完整的检测链路：
@@ -206,6 +208,5 @@ waitress-serve --host=0.0.0.0 --port=5000 wsgi:app
 ```
 
 更多部署建议见 [DEPLOYMENT.md](DEPLOYMENT.md)。
-
 
 
